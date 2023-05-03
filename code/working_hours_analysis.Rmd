@@ -1,0 +1,102 @@
+---
+title: "working_hours_analysis"
+author: "The Group"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(urca)
+library(dynlm)
+library(readxl)
+library(forecast)
+```
+
+# Read in the data
+```{r}
+working_hours = read_excel("./data/ch10_Weekly_Hours.xls")
+
+# Convert the date column to a date format
+working_hours$observation = as.Date(working_hours$observation_date)
+
+# Create a time series object
+working_hours_ts = ts(working_hours$hours_worked_index, 
+                       frequency = 12, 
+                       start = c(2006, 3))
+```
+
+# Plot the data to visually check for stationarity
+```{r}
+# Plot the time series
+autoplot(working_hours_ts) + 
+  xlab("Date") + 
+  ylab("Working Hours") +
+  ggtitle("Working Hours Over Time")
+```
+
+# Dickey-Fuller Check
+```{r}
+# Perform the ADF test
+adf.test(working_hours_ts)
+```
+Clearly, we can see an upwards trend to the data as well as at least one possible unit root showing prior to 2010. We also have the massive dip in working hours due to COVID. This data is not currently stationary and will need to be transformed in order for forecasting. This visualize observation is also backed up by the Dickey-Fuller test as the p-value of 0.4967 is greater than the critical value of 0.05 thus we cannot reject the null hypothesis and accept the alternative hypothesis that this data is stationary.
+
+# Unit roots
+```{r}
+# Perform the ADF test
+adf_result = ur.df(working_hours_ts, type = "trend", selectlags = "AIC")
+
+# Print the ADF test results
+summary(adf_result)
+```
+The test statistic in this case is -2.6455. The critical values for the test statistics are also provided, which are -3.99, -3.43, and -3.13 for the 1%, 5%, and 10% significance levels respectively.
+
+Since the test statistic is less than (we take the absolute value, I think, we NEED to review this) the critical values for all three levels of significance, we can reject the null hypothesis that the time series has a unit root. The p-value of 0.05388 is greater than 0.05, which is close enough to support rejecting it. 0.05 is not a hard limit.
+
+Therefore, based on the ADF test, there is evidence to suggest that the time series has no unit roots.
+
+# Correlograms
+```{r}
+# Plot the autocorrelation and partial autocorrelation functions
+ggtsdisplay(working_hours_ts)
+```
+With the ACF we see a gradual decay which suggests the data has a moving average component. Which when then looking at the PACF we can see that there is one sharp spike at the start. These two things suggest an MA of order 1 is worth exploring in our modeling process.
+
+# Add in a first difference
+```{r}
+# Compute first differences of the time series
+working_hours_diff = diff(working_hours_ts)
+
+# Plot the autocorrelation and partial autocorrelation functions
+ggtsdisplay(working_hours_diff)
+```
+We can see that adding in the first difference removes the trend though the COVID spike remains and will need to be adressed. With ACF and PACF spikes at the second lag suggests that a combined ARMA model of order 2 may be appriate to consider.
+
+```{r}
+# Perform the ADF test on the differenced data
+adf.test(working_hours_diff)
+```
+Dickey-Fuller suggests that we have stationary data now. as the p-value of 0.01 is below 0.05 and we can reject the null hyptothesis that this data is not stationary. While great, we can do better. 
+
+We'll probably need to add an indicator variable for the covid pandemc and an interaction term with the ARMA term. Which should hopfeully capture the pandemic seasonality, which is a black swan event. Basically, its a term that dictates forecasting if we find ourselves in a pandemic the model could "adequately" forecast through it. 
+
+Indicator variable is binary, basically in pandemic or not. It's important to restate that this model would not be able to predict a pandemic but would would help forecasting working hours in a pandemic.
+
+# Fit model ARMA(2, 2)
+```{r}
+# Fit an ARMA model with order of 2 for both terms.
+model = arima(working_hours_diff, order = c(2, 0, 2))
+
+summary(model)
+```
+So we have a reasonably good fit here with a ARMA(2,2) model the AIC is 689.72 which is relatively low suggesting a good fit. As well RMSE is 1.2737 which suggests that this models predictions are roughly 1.27 units, or in our case hours, away from actual values. This is a good start.
+
+# Let's do a quick 6 month forecast
+```{r}
+fcasts = forecast(model, h=6)
+
+autoplot(fcasts)
+```
+
