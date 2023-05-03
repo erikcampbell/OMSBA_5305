@@ -9,16 +9,48 @@ library(stats)
 library(forecast)
 library(readxl)
 library(lubridate)
+library(dynlm)
+library(vtable)
+library(scales)
 
-# load data and convert to time-series
+# load data, plot and review for trends/seasonality.
 data <- read_excel("./Data/ch10_Weekly_Hours.xls")
 
+plot(data, main = "Monthly Hours All Employees from MAR 2006 - MAR 2023 Indexed to 2007 = 100",
+     xlab = 'Month/Year', ylab = 'Mean Hours indexed to 2007= 100', col = 'blue', type = "l")
 
-# plot and review for trends/seasonality
-plot(data, main = "Average Weekly Hours All Employees from MAR 2006 - MAR 2023",
-     xlab = 'Month/Year', ylab = 'Mean Weekly Hours indexed to 2007= 100')
+## ggplot
+a <- data %>%
+  ggplot(aes(x = date, y = hours_worked_index)) +
+  geom_line(color = "blue", size = 1.5) +
+  labs(title = "Monthly Hours All Employees from MAR 2006 - MAR 2023 Indexed to 2007 = 100",
+       y = 'Hours Worked (indexed to 2007 = 100', x = 'Date'
+       ) +
+  theme_classic()
+a
 
 # turn into time-series
+y <- ts(data$hours_worked_index, frequency = 12, start = c(2006,3))
+
+plot(y,main = "Average Weekly Hours All Employees from MAR 2006 - MAR 20203",
+     xlab = 'Date', ylab = 'Hours Worked(indexed to 2007 = 100',col='blue')
+
+
+
+#g1t<-100*diff(Y)/stats::lag(Y,-1)
+#g1t
+#var(g1t)
+
+#plot(y)
+#g2t<-100*diff(y)
+#plot(g2t)
+
+#g2t
+#mean(g2t)
+#var(g2t)
+
+#acf(g2t,lag.max=4, plot=FALSE)
+#acf(g2t,lag.max=4)
 
 # plot
 
