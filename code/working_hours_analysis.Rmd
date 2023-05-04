@@ -26,7 +26,7 @@ library(knitr)
 ```
 
 # Read in the data
-```{r}
+```{r, echo=FALSE}
 working_hours = read_excel("../data/ch10_Weekly_Hours.xls")
 
 # Convert the date column to a date format
@@ -39,7 +39,7 @@ working_hours_ts = ts(working_hours$hours_worked_index,
 ```
 
 # Plot the data to visually check for stationarity
-```{r}
+```{r, echo=FALSE}
 # Plot the time series
 autoplot(working_hours_ts) + 
   xlab("Date") + 
@@ -48,7 +48,7 @@ autoplot(working_hours_ts) +
 ```
 
 # EDA boxplot for cycle associations by month
-```{r}
+```{r, echo=FALSE}
 ts_plot_season <- function(x = x) {
 season <- cycle(x)
 season.factor <- factor(season)
@@ -59,8 +59,17 @@ ggplot() +
        title = "Seasonality/Cycles by Month")
 }
 ts_plot_season(working_hours_ts)
+
+# Seasonality check 
+ggseasonplot(working_hours_ts) +
+  ggtitle("Seasonal Plot: Aggregated Monthly Working Hours for all Years")
+
+# Seasonality check- Sub-Series Plot
+ggsubseriesplot(working_hours_ts) +
+    ggtitle("Seasonal Plot: First Differenced Data Change for Aggregated Monthly Working Hours")
 ```
-There are 17 periods for each month with April being lowest at 99.9 and December was highest at 102.9 hours indexed against 2007.
+
+There are 17 periods for each month with April being lowest at 99.9 and December was highest at 102.9 hours indexed against 2007. Seasonality plot for all years and months demonstrates the Great Recession and Covid period.
 
 # sanity check to make sure function for ts_plot function is correct. # please review and confirm/snipe me-thanks!
 ```{r, echo =FALSE}
@@ -84,14 +93,14 @@ plot(decomp_work_hours_ts$random, main = "Random Decomposition", ylab = "Aggrega
 ```
 
 # Dickey-Fuller Check
-```{r}
+```{r, echo=FALSE}
 # Perform the ADF test
 adf.test(working_hours_ts)
 ```
 Clearly, we can see an upwards trend to the data as well as at least one possible unit root showing prior to 2010. We also have the massive dip in working hours due to COVID. This data is not currently stationary and will need to be transformed in order for forecasting. This visualize observation is also backed up by the Dickey-Fuller test as the p-value of 0.4967 is greater than the critical value of 0.05, thus we cannot reject the null hypothesis that time series is not stationary and accept the alternative hypothesis that this data is stationary.
 
 # Unit roots
-```{r}
+```{r, echo=FALSE}
 # Perform the ADF test
 adf_result = ur.df(working_hours_ts, type = "trend", selectlags = "AIC")
 
@@ -105,14 +114,15 @@ Since the test statistic is less than (we take the absolute value, I think, we N
 Therefore, based on the ADF test, there is evidence to suggest that the time series has no unit roots.
 
 # Correlograms
-```{r}
+```{r, echo=FALSE}
 # Plot the autocorrelation and partial autocorrelation functions
 ggtsdisplay(working_hours_ts)
 ```
+
 With the ACF we see a gradual decay which suggests the data has a moving average component. Which when then looking at the PACF we can see that there is one sharp spike at the start. These two things suggest an MA of order 1 is worth exploring in our modeling process.
 
 # Add in a first difference
-```{r}
+```{r, echo=FALSE}
 # Compute first differences of the time series
 working_hours_diff = diff(working_hours_ts)
 
@@ -127,10 +137,23 @@ ggtsdisplay(working_hours_diff)
 ggseasonplot(working_hours_diff) +
   ggtitle("Seasonal Plot: First Differenced Data Change for Aggregated Monthly Working Hours")
 
+# Seasonal sub-series plot
+ggsubseriesplot(working_hours_diff) +
+    ggtitle("Seasonal Plot: subseries: First Differenced Data Change for Aggregated Monthly Working Hours")
 ```
-We can see that adding in the first difference makes us more trend-stationary and checking seasonality from 2006 through 2023 it can be observed that the 2008 Great Recession and Covid are the only outlier periods. The COVID spike remains and will need to be addressed. With ACF and PACF spikes at the second lag suggests that a combined ARMA model of order 2 may be appropriate to consider.
 
-```{r}
+We can see that adding in the first difference makes us much more trend-stationary and checking seasonality from 2006 through 2023 it can be observed that the 2008 Great Recession and Covid are still outlier periods. As a benchmark forecasting method looking at seasonality, a Seasonal Naive Method serves a baseline tool. A look at the residuals appears fairly random excluding COVID, there are ACF spikes over time that are not ideal and confirms seasonal naive method is helpful in understanding the data, but there are more helpful models.
+
+# Seasonal Naive Method - exploratory only - still have ACF spikes (associated with Great Recession + Covid)
+```{r, echo=FALSE}
+fit <- snaive(working_hours_diff) # Residual SD = 1.8805 Aggregated Monthly Hours
+print(summary(fit))
+checkresiduals(fit)
+```
+
+The COVID spike remains and will need to be addressed. With ACF and PACF spikes at the second lag suggests that a combined ARMA model of order 2 may be appropriate to consider.
+
+```{r, echo=FALSE}
 # Perform the ADF test on the differenced data
 adf.test(working_hours_diff)
 ```
@@ -140,8 +163,23 @@ We'll probably need to add an indicator variable for the covid pandemc and an in
 
 Indicator variable is binary, basically in pandemic or not. It's important to restate that this model would not be able to predict a pandemic but would would help forecasting working hours in a pandemic.
 
+# Exploratory forecasting method - Exponential Smoothing Model(class of t.s. forecasting models)  This does not fit well within technical requirements, but knowledge.
+```{r, echo=FALSE}
+# Fit ets Method - evaluates models and returns a recommendation for best
+fit_ets <- ets(working_hours_diff)  # Residual SD = 1.2989 Aggregated Monthly Hours
+print(summary(fit_ets)) # best model = additive, None, None (simple exponential smoothing with additive errors)
+checkresiduals(fit_ets)
+```
+# Fit on ARIMA model
+d= 1 takes first diff of orig. data behind scenes. D=1 takes out first seasonal difference,
+```{r, echo=FALSE}
+fit_arima <- auto.arima(working_hours_ts, d = 1, D=1, stepwise = FALSE, approximation = FALSE, trace = TRUE) # SD = sqrt(1.786) = 1.336413 Aggregated Monthly Hours
+print(summary(fit_arima)) # best model = additive, None, None (simple exponential smoothing with additive errors)
+checkresiduals(fit_arima)
+```
+
 # Fit model ARMA(2, 2)
-```{r}
+```{r, echo=FALSE}
 # Fit an ARMA model with order of 2 for both terms.
 model = arima(working_hours_diff, order = c(2, 0, 2))
 
@@ -150,9 +188,17 @@ summary(model)
 So we have a reasonably good fit here with a ARMA(2,2) model the AIC is 689.72 which is relatively low suggesting a good fit. As well RMSE is 1.2737 which suggests that this models predictions are roughly 1.27 units, or in our case hours, away from actual values. This is a good start.
 
 # Let's do a quick 6 month forecast
-```{r}
+```{r, echo=FALSE}
 fcasts = forecast(model, h=6)
 
 autoplot(fcasts)
+print(summary(fcasts))
 ```
 
+# 6 month forecast with ARIMA model
+```{r, echo=FALSE}
+fcast2 = forecast(fit_arima, h =6)
+autoplot(fcast2, include = 12)
+print(summary(fcast2))
+
+```
