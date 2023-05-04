@@ -22,6 +22,7 @@ library(forecast)
 library(tidyverse)
 library(tseries)
 library(fpp2)
+library(knitr)
 ```
 
 # Read in the data
@@ -54,28 +55,32 @@ season.factor <- factor(season)
 ggplot() + 
   geom_boxplot(mapping = aes(x = season.factor,
                              y = x)) +
-  labs(x = "Month", y =  "Hours Worked")
+  labs(x = "Month", y =  "Aggregated Monthly Hours Worked",
+       title = "Seasonality/Cycles by Month")
 }
 ts_plot_season(working_hours_ts)
 ```
+There are 17 periods for each month with April being lowest at 99.9 and December was highest at 102.9 hours indexed against 2007.
 
 # sanity check to make sure function for ts_plot function is correct. # please review and confirm/snipe me-thanks!
-```{r}
+```{r, echo =FALSE}
 seasonality_month_check <- working_hours %>%
   mutate(year = as.numeric(format(working_hours$observation_date, "%Y")),
          month = as.numeric(format(working_hours$observation_date, "%m"))
          ) %>%
   group_by(month) %>%
   summarize(count = n(), mean(hours_worked_index), median(hours_worked_index))
+
+knitr::kable(seasonality_month_check, "simple", caption = "Seasonality by Month") # cleanup
 ```
 
 # Decompose data to inspect trend, seasonal and random
 ```{r, echo=FALSE}
 decomp_work_hours_ts <- decompose(working_hours_ts, "multiplicative")
 plot(decomp_work_hours_ts)
-plot(decomp_work_hours_ts$trend)
-plot(decomp_work_hours_ts$seasonal)
-plot(decomp_work_hours_ts$random)
+plot(decomp_work_hours_ts$trend, main = "Trends from Decomposition in Data", ylab = "Aggregated Monthly Hours")
+plot(decomp_work_hours_ts$seasonal, main = "Seasonal Trends Decomposition in Data", ylab = "Aggregated Monthly Hours")
+plot(decomp_work_hours_ts$random, main = "Random Decomposition", ylab = "Aggregated Monthly Hours")
 ```
 
 # Dickey-Fuller Check
@@ -111,10 +116,19 @@ With the ACF we see a gradual decay which suggests the data has a moving average
 # Compute first differences of the time series
 working_hours_diff = diff(working_hours_ts)
 
+# plot of first difference data
+autoplot(working_hours_diff) +
+  ggtitle("Time Plot: First Differenced Data Change for Aggregated Monthly Working Hours")
+
 # Plot the autocorrelation and partial autocorrelation functions
 ggtsdisplay(working_hours_diff)
+
+# Seasonality check for trend-stationary first differences data
+ggseasonplot(working_hours_diff) +
+  ggtitle("Seasonal Plot: First Differenced Data Change for Aggregated Monthly Working Hours")
+
 ```
-We can see that adding in the first difference removes the trend though the COVID spike remains and will need to be adressed. With ACF and PACF spikes at the second lag suggests that a combined ARMA model of order 2 may be appriate to consider.
+We can see that adding in the first difference makes us more trend-stationary and checking seasonality from 2006 through 2023 it can be observed that the 2008 Great Recession and Covid are the only outlier periods. The COVID spike remains and will need to be addressed. With ACF and PACF spikes at the second lag suggests that a combined ARMA model of order 2 may be appropriate to consider.
 
 ```{r}
 # Perform the ADF test on the differenced data
