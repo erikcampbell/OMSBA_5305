@@ -2,7 +2,14 @@
 title: "working_hours_analysis"
 author: "The Group"
 date: "`r Sys.Date()`"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: true
+editor_options: 
+  chunk_output_type: inline
 ---
 
 ```{r setup, include=FALSE}
@@ -12,14 +19,18 @@ library(urca)
 library(dynlm)
 library(readxl)
 library(forecast)
+library(tidyverse)
+library(tseries)
+library(fpp2)
 ```
 
 # Read in the data
 ```{r}
-working_hours = read_excel("./data/ch10_Weekly_Hours.xls")
+working_hours = read_excel("../data/ch10_Weekly_Hours.xls")
 
 # Convert the date column to a date format
-working_hours$observation = as.Date(working_hours$observation_date)
+working_hours <- working_hours %>%
+  mutate(observation_date = format(as.Date(observation_date),"%Y-%m"))
 
 # Create a time series object
 working_hours_ts = ts(working_hours$hours_worked_index, 
@@ -36,12 +47,21 @@ autoplot(working_hours_ts) +
   ggtitle("Working Hours Over Time")
 ```
 
+# Decompose data to inspect trend, seasonal and random
+```{r, echo=FALSE}
+decomp_work_hours_ts <- decompose(working_hours_ts, "multiplicative")
+plot(decomp_work_hours_ts)
+plot(decomp_work_hours_ts$trend)
+plot(decomp_work_hours_ts$seasonal)
+plot(decomp_work_hours_ts$random)
+```
+
 # Dickey-Fuller Check
 ```{r}
 # Perform the ADF test
 adf.test(working_hours_ts)
 ```
-Clearly, we can see an upwards trend to the data as well as at least one possible unit root showing prior to 2010. We also have the massive dip in working hours due to COVID. This data is not currently stationary and will need to be transformed in order for forecasting. This visualize observation is also backed up by the Dickey-Fuller test as the p-value of 0.4967 is greater than the critical value of 0.05 thus we cannot reject the null hypothesis and accept the alternative hypothesis that this data is stationary.
+Clearly, we can see an upwards trend to the data as well as at least one possible unit root showing prior to 2010. We also have the massive dip in working hours due to COVID. This data is not currently stationary and will need to be transformed in order for forecasting. This visualize observation is also backed up by the Dickey-Fuller test as the p-value of 0.4967 is greater than the critical value of 0.05, thus we cannot reject the null hypothesis that time series is not stationary and accept the alternative hypothesis that this data is stationary.
 
 # Unit roots
 ```{r}
