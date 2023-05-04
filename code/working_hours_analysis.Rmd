@@ -29,8 +29,7 @@ library(fpp2)
 working_hours = read_excel("../data/ch10_Weekly_Hours.xls")
 
 # Convert the date column to a date format
-working_hours <- working_hours %>%
-  mutate(observation_date = format(as.Date(observation_date),"%Y-%m"))
+working_hours$observation = as.Date(working_hours$observation_date)
 
 # Create a time series object
 working_hours_ts = ts(working_hours$hours_worked_index, 
@@ -45,6 +44,29 @@ autoplot(working_hours_ts) +
   xlab("Date") + 
   ylab("Working Hours") +
   ggtitle("Working Hours Over Time")
+```
+
+# EDA boxplot for cycle associations by month
+```{r}
+ts_plot_season <- function(x = x) {
+season <- cycle(x)
+season.factor <- factor(season)
+ggplot() + 
+  geom_boxplot(mapping = aes(x = season.factor,
+                             y = x)) +
+  labs(x = "Month", y =  "Hours Worked")
+}
+ts_plot_season(working_hours_ts)
+```
+
+# sanity check to make sure function for ts_plot function is correct. # please review and confirm/snipe me-thanks!
+```{r}
+seasonality_month_check <- working_hours %>%
+  mutate(year = as.numeric(format(working_hours$observation_date, "%Y")),
+         month = as.numeric(format(working_hours$observation_date, "%m"))
+         ) %>%
+  group_by(month) %>%
+  summarize(count = n(), mean(hours_worked_index), median(hours_worked_index))
 ```
 
 # Decompose data to inspect trend, seasonal and random
