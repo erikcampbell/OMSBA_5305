@@ -379,18 +379,17 @@ summary(y_trend_bic)
 
 # Difference data and adf test - I'm uncertain about AIC/Bayes IC difference, 
 # just watching Youtube U video from https://www.youtube.com/watch?v=mkHtP0nONJY
-diff_working_hours <- diff(working_hours_ts)
-dy_none_aic  = ur.df(diff_working_hours, type = "none", selectlags = "AIC")
+dy_none_aic  = ur.df(working_hours_diff, type = "none", selectlags = "AIC")
 summary(dy_none_aic)
-dy_none_bic  = ur.df(diff_working_hours, type = "none", selectlags = "BIC")
+dy_none_bic  = ur.df(working_hours_diff, type = "none", selectlags = "BIC")
 summary(dy_none_bic)
-dy_drift_aic = ur.df(diff_working_hours, type = "drift", selectlags = "AIC")
+dy_drift_aic = ur.df(working_hours_diff, type = "drift", selectlags = "AIC")
 summary(dy_drift_aic)
-dy_drift_bic = ur.df(diff_working_hours, type = "drift", selectlags = "BIC")
+dy_drift_bic = ur.df(working_hours_diff, type = "drift", selectlags = "BIC")
 summary(dy_drift_bic)
-dy_trend_aic = ur.df(diff_working_hours, type = "trend", selectlags = "AIC")
+dy_trend_aic = ur.df(working_hours_diff, type = "trend", selectlags = "AIC")
 summary(dy_trend_aic)
-dy_trend_bic = ur.df(diff_working_hours, type = "trend", selectlags = "BIC")
+dy_trend_bic = ur.df(working_hours_diff, type = "trend", selectlags = "BIC")
 summary(dy_trend_bic)
 ```
 
