@@ -200,7 +200,7 @@ ggPacf(res) # yes, no large spikes and residuals are white-noise
 
 # prepare to forecast
 ```{r}
-model2 <- dynlm(diff_working_hours ~ stats::lag(diff_working_hours,-1) + 0) #AR(1) w/o constant for differenced series
+model2 <- dynlm(working_hours_diff ~ stats::lag(working_hours_diff,-1) + 0) #AR(1) w/o constant for differenced series
 summary(model2)
 AIC(model2)
 #[1] 685.9268
