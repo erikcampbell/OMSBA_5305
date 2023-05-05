@@ -26,7 +26,7 @@ library(knitr)
 library(stats)
 ```
 
-# Read in the data
+# Read in the Data
 ```{r, echo=FALSE}
 working_hours = read_excel("../data/ch10_Weekly_Hours.xls")
 
@@ -39,17 +39,17 @@ working_hours_ts = ts(working_hours$hours_worked_index,
                        start = c(2006, 3))
 ```
 
-# Plot the data to visually check for stationarity
+# Exploring the Data
 ```{r, echo=FALSE}
-# Plot the time series
+# Plot the Data to visually check for stationarity
 autoplot(working_hours_ts) + 
   xlab("Date") + 
   ylab("Indexed Working Hours") +
   ggtitle("Agg. Weekly Work Hours Indexed(2017=100) Over Time(reported monthly)")
 ```
 
-# EDA boxplot for cycle associations by month
 ```{r, echo=FALSE}
+# Boxplot for cycle associations by month
 ts_plot_season <- function(x = x) {
 season <- cycle(x)
 season.factor <- factor(season)
@@ -60,12 +60,16 @@ ggplot() +
        title = "Seasonality/Cycles for Agg Weekly Hours Indexed(2007 = 100) reported monthly")
 }
 ts_plot_season(working_hours_ts)
+```
 
-# Seasonality check 
+```{r}
+## Seasonality check 
 ggseasonplot(working_hours_ts) +
   ylab("Index of Aggregated Weekly Hours Worked") +
   ggtitle("Seasonal Plot: Index of Aggregated & Indexed (2007=100) Weekly Working Hours for all Years")
+```
 
+```{r}
 # Seasonality check- Sub-Series Plot
 ggsubseriesplot(working_hours_ts) +
   ylab("Index of Aggregated Weekly Hours Worked") +
@@ -74,49 +78,25 @@ ggsubseriesplot(working_hours_ts) +
 
 There are 17 periods for each month with April being lowest aggregated and indexed to 2007 with a value 99.9, and December was highest aggregated and indexed value of 102.9 hours against base 2007. Seasonality plot for all years and months demonstrates the Great Recession and Covid period.
 
-Sanity check to make sure function for ts_plot function is correct. # please review and confirm/snipe me and we can delete afterward-thanks!
-```{r, echo =FALSE}
-seasonality_month_check <- working_hours %>%
-  mutate(year = as.numeric(format(working_hours$observation_date, "%Y")),
-         month = as.numeric(format(working_hours$observation_date, "%m"))
-         ) %>%
-  group_by(month) %>%
-  summarize(count = n(), mean(hours_worked_index), median(hours_worked_index))
-
-knitr::kable(seasonality_month_check, "simple", caption = "Seasonality by Month") # cleanup
-```
-
-# EDA Decompose data to inspect trend, seasonal and random events
+# Decompose data to inspect trend, seasonal and random events
 ```{r, echo=FALSE}
 decomp_work_hours_ts <- decompose(working_hours_ts, "additive") # Yt = Tt + St + Rt
 plot(decomp_work_hours_ts)
-plot(decomp_work_hours_ts$trend, main = "Trends from Decomposition in Data", 
-     ylab = "Aggregated & Indexed to 2007 Weekly Hours")
-plot(decomp_work_hours_ts$seasonal, main = "Seasonal Trends Decomposition in Data",
-     ylab = "Aggregated & Indexed to 2007 Weekly Hours")
-plot(decomp_work_hours_ts$random, main = "Random Decomposition", 
-     ylab = "Aggregated & Indexed to 2007 Weekly Hours")
 ```
 
 The width and height of seasonal cycles over time is predictable and trend is fairly linear, thus decomposition was done additively (Yt = Tt + St + Rt).
+
 [Resource](https://towardsdatascience.com/time-series-from-scratch-decomposing-time-series-data-7b7ad0c30fe7#:~:text=an%20increasing%20trend.-,Additive%20trend%20and%20multiplicative%20seasonality,of%20seasonal%20periods%20over%20time.&text=Once%20again%2C%20the%20trend%20is,periods%20have%20increased%20over%20time.)
 
-# Dickey-Fuller Check
+# Correlograms
 ```{r, echo=FALSE}
-# Perform the ADF test
-adf.test(working_hours_ts)
+# Plot the autocorrelation and partial autocorrelation functions
+ggtsdisplay(working_hours_ts)
 ```
 
-I think this data was originally under "Plot the data to visually check for stationarity" section.
-Clearly, we can see an upwards persistance trend fo the data and at least one possible unit root showing prior to 2010. We also have the massive dip in working hours due to COVID. This data is not currently stationary and will need to be transformed in order for forecasting. This observation is also backed up by the Dickey-Fuller test as the p-value of 0.4967 is greater than the critical value of 0.05, thus we cannot reject the null hypothesis that time series is not stationary and accept the alternative hypothesis that this data is stationary.
+With the ACF we see a gradual decay which suggests the data has a moving average component. Which when then looking at the PACF we can see that there is one sharp spike at the start. These two things suggest an MA of order 1 and 2 are worth exploring in our modeling process.
 
-The test statistic in this case is -2.6455. The critical values for the test statistics are also provided, which are -3.99, -3.43, and -3.13 for the 1%, 5%, and 10% significance levels respectively.
-
-Since the test statistic is less than (we take the absolute value, I think, we NEED to review this) the critical values for all three levels of significance, we can reject the null hypothesis that the time series has a unit root. The p-value of 0.05388 is greater than 0.05, which is close enough to support rejecting it as 0.05 is not a hard limit.
-
-Therefore, based on the ADF test, there is evidence to suggest that the time series has no unit roots.
-
-# Unit roots & Erik DF - I think I'm confusing the hell out of myself from different sources on the web.
+# Dickey-Fuller Check
 The statistical procedure to test for unit root is in essence a test of non-stationarity versus stationary of the stochastic process. - Textbook
  
 if Test Statistic < Critical Values => Rejects the null hypothesis.
@@ -126,63 +106,25 @@ the p-value or probability value is the probability of obtaining test results at
 Source: https://medium.datadriveninvestor.com/interpreting-results-of-dicky-fuller-test-for-time-series-analysis-4bb1e98f242b
 
 https://en.wikipedia.org/wiki/Augmented_Dickey%E2%80%93Fuller_test
+
+Perform the DF test Yt = Dt (deterministic) + Zt (stochastic) + Et.  Does Zt have a root?
+
 ```{r, echo=FALSE}
-# Perform the DF test Yt = Dt (deterministic) + Zt (stochastic) + Et.  Does Zt have a root?
+
 df_check <- ur.df(working_hours_ts, type = 'drift', lags = 0)
 summary(df_check) # t-Stat  = -0.8495,  f-Stat = 0.7773, 
                   # critical values =-3.46, -2.88, -2.57 p-value = 0.3966
+```
 
+```{r}
 df_check1 <- ur.df(working_hours_ts, type = "trend", lags = 0)
 summary(df_check) # t-Stat  = -2.636,   f-stat = 2.7999
                   # critical value =-3.99, -3.43, -3.13 p-value = .02466
-
-# Difference monthly indexed hours and evaluate
-diff_working_hours <- diff(working_hours_ts) # 204 observations
-model <- dynlm(diff_working_hours ~ stats::lag(working_hours_ts, -1)) # regression IAW ADF test
-summary(model) # estimation output
-AIC(model)
-# [1] 688.8812
-BIC(model)
-# [1] 698.8356
-res <- residuals(model)
-plot(res) # for fun, plot of residuals
-ggAcf(res)
-ggPacf(res) # yes, no large spikes and residuals are white-noise
-
-# Dickey-Fuller Test Unit Root on First Difference with type = drift
-d_df <- ur.df(diff(working_hours_ts), type = "drift", lags = 0)
-summary(d_df) # t-Stat  = -14.49,   f-stat = 105.07
-              # critical value =-3.46, -2.88, -2.57 p-value = 2.2e-16 cool
-              # z.lag.1 *** significance
-
-# Dickey-Fuller Test Unit Root on First Difference with type = Trend
-d_df_1 <- ur.df(diff(working_hours_ts), type = "trend", lags = 0)
-summary(d_df_1) # t-Stat  = -14.50,   f-stat = 70.14
-              # critical value =-3.99, -3.46, -3.13 p-value = 2.2e-16 cool
-              # tt not statiscally significant
-
-# prepare to forecast
-model2 <-dynlm(diff_working_hours ~ stats::lag(diff_working_hours,-1)+0) #AR(1) w/o constant for differenced series
-summary(model2)
-AIC(model2)
-#[1] 685.9268
-BIC(model2)
-#[1] 692.5532
 ```
 
-# Correlograms
-```{r, echo=FALSE}
-# Plot the autocorrelation and partial autocorrelation functions
-ggtsdisplay(working_hours_ts)
-ggAcf(working_hours_ts, lag.max = 20, main ="Autocorrelation Function (ACF)",
-      xlab ="Lag", ylab ="ACF")
-ggPacf(working_hours_ts, lag.max = 10, main ="Partial Autocorrelation Function (ACF)",
-       xlab ="Lag", ylab ="PACF")
-```
+As we can see from the above charts and the Dickey-Fuller test this data is not current stationary. The first step is to take a first difference to, hopefully, remove the trend.
 
-With the ACF we see a gradual decay which suggests the data has a moving average component. Which when then looking at the PACF we can see that there is one sharp spike at the start. These two things suggest an MA of order 1 and 2 are worth exploring in our modeling process.
-
-# Add in a first difference - I feel like this block  above in EDA territory?
+# Add in a First Difference
 ```{r, echo=FALSE}
 # Compute first differences of the time series
 working_hours_diff = diff(working_hours_ts)
@@ -190,39 +132,81 @@ working_hours_diff = diff(working_hours_ts)
 # plot of first difference data
 autoplot(working_hours_diff) +
   ggtitle("Time Plot: First Differenced Data Change for Aggregated Monthly Working Hours")
+```
 
+```{r}
 # Plot the autocorrelation and partial autocorrelation functions
 ggtsdisplay(working_hours_diff)
+```
 
+```{r}
 # Seasonality check for trend-stationary first differences data
 ggseasonplot(working_hours_diff) +
   ggtitle("Seasonal Plot: First Differenced Data Change for Aggregated Monthly Working Hours")
-
+```
+```{r}
 # Seasonal sub-series plot
 ggsubseriesplot(working_hours_diff) +
     ggtitle("Seasonal Plot: subseries: First Differenced Data Change for Aggregated Monthly Working Hours")
-ggAcf(working_hours_diff, lag.max = 10, main ="Autocorrelation Function (ACF)", xlab ="Lag", ylab ="ACF")
-ggPacf(working_hours_diff, lag.max = 10, main ="Partial Autocorrelation Function (PACF)", xlab ="Lag", ylab ="PACF")
 ```
 
 We can see that adding in the first difference makes us much more trend-stationary and checking seasonality from 2006 through 2023 it can be observed that the 2008 Great Recession and Covid are still outlier periods. 
 
 The COVID spike remains and will need to be addressed. With ACF and PACF spikes at the second lag suggests that a combined ARMA model of order 2 may be appropriate to consider.
 
+Now the Dickey-Fuller test is done on the differenced data.
 ```{r, echo=FALSE, warning=FALSE}
 # Perform the ADF test on the differenced data
 adf.test(working_hours_diff) # lag 5 p-value = .01 , supposedly as lag order increase, more df stationary
-adf.test(working_hours_diff, k = 10) # lag 10, p-value = .01
-adf.test(working_hours_diff, k = 1) # lag 1, p-value = .01
+```
 
+```{r}
+adf.test(working_hours_diff, k = 10) # lag 10, p-value = .01
+```
+
+```{r}
+adf.test(working_hours_diff, k = 1) # lag 1, p-value = .01
+```
+
+```{r}
 #  Phillips Perron Test - more general test than df and don't have to change lags
 pp.test(working_hours_diff) # not sure mechanics behind this besides a youtube video.
 ```
-Dickey-Fuller suggests that we have stationary data now. as the p-value of 0.01 is below 0.05 and we can reject the null hyptothesis that this data is not stationary. While great, we can do better. 
+Dickey-Fuller suggests that we have stationary data now. as the p-value of 0.01 is below 0.05 and we can reject the null hypothesis that this data is not stationary. While great, we can do better. 
 
-We'll probably need to add an indicator variable for the covid pandemc and an interaction term with the ARMA term. Which should hopefully capture the pandemic seasonality (affect on deterministic and stochastic trends?), which is a black swan event. Basically, its a term that dictates forecasting if we find ourselves in a pandemic the model could "adequately" forecast through it. (For debate: drop Covid lockdown months as outliers?-Erik) 
+We'll probably need to add an indicator variable for the covid pandemic and an interaction term with the ARMA term. Which should hopefully capture the pandemic seasonality (affect on deterministic and stochastic trends?), which is a black swan event. Basically, its a term that dictates forecasting if we find ourselves in a pandemic the model could "adequately" forecast through it. (For debate: drop Covid lockdown months as outlines?-Erik) 
 
 Indicator variable is binary, basically in pandemic or not. It's important to restate that this model would not be able to predict a pandemic but would would help forecasting working hours in a pandemic.
+
+
+```{r}
+model <- dynlm(working_hours_diff ~ stats::lag(working_hours_ts, -1)) # regression IAW ADF test
+summary(model) # estimation output
+```
+
+```{r}
+AIC(model)
+# [1] 688.8812
+BIC(model)
+# [1] 698.8356
+```
+
+```{r}
+res <- residuals(model)
+plot(res) # for fun, plot of residuals
+ggAcf(res)
+ggPacf(res) # yes, no large spikes and residuals are white-noise
+```
+
+# prepare to forecast
+```{r}
+model2 <- dynlm(diff_working_hours ~ stats::lag(diff_working_hours,-1) + 0) #AR(1) w/o constant for differenced series
+summary(model2)
+AIC(model2)
+#[1] 685.9268
+BIC(model2)
+#[1] 692.5532
+```
 
 # Fit model ARMA(2,0,2)
 ```{r, echo=FALSE}
@@ -232,6 +216,16 @@ summary(model)
 plot(model)
 ```
 So we have a reasonably good fit here with a ARMA(2,2) model the AIC is 689.72 which is relatively low suggesting a good fit. As well RMSE is 1.2737 which suggests that this models predictions are roughly 1.27 units, or in our case hours, away from actual values. This is a good start.
+
+```{r}
+# Q-Test Check
+
+# Calculate the residuals
+residuals <- residuals(model)
+
+# Perform the Q-test
+Box.test(residuals, type="Ljung-Box")
+```
 
 # Let's do a quick 6 month forecast ARMA(2,0,2)
 ```{r, echo=FALSE}
@@ -252,7 +246,15 @@ BIC(ma_1)
 checkresiduals(ma_1)
 plot(ma_1)
 ```
+```{r}
+# Q-Test Check
 
+# Calculate the residuals
+residuals <- residuals(ma_1)
+
+# Perform the Q-test
+Box.test(residuals, type="Ljung-Box")
+```
 # Forecast with MA(1) ARMA(0,0,1)
 ```{r, echo=FALSE}
 fcast_ma1 = forecast(ma_1, h=6)
@@ -273,6 +275,16 @@ checkresiduals(ma_2) # no spikes
 plot(ma_2)
 ```
 
+```{r}
+# Q-Test Check
+
+# Calculate the residuals
+residuals <- residuals(ma_2)
+
+# Perform the Q-test
+Box.test(residuals, type="Ljung-Box")
+```
+
 # Forecast with MA(2) ARMA(0,0,2)
 ```{r, echo=FALSE}
 fcast_ma2 = forecast(ma_2, h=6)
@@ -287,7 +299,17 @@ d= 1 takes first diff of orig. data behind scenes. D=1 takes out first seasonal 
 fit_arima <- auto.arima(working_hours_ts, d = 1, D=1, stepwise = FALSE, approximation = FALSE, trace = TRUE) # SD = sqrt(1.786) = 1.336413 Aggregated Monthly Hours
 print(summary(fit_arima)) # best model = additive, None, None (simple exponential smoothing with additive errors)
 checkresiduals(fit_arima)
-plot(fit_arima) # the values fit within circle,but looks funky and maybe need to omit?
+plot(fit_arima) # the values fit within circle,but looks funky and maybe need to omit?  ---- Yes, we only need 3 models from what I can tell. 
+```
+
+```{r}
+# Q-Test Check
+
+# Calculate the residuals
+residuals <- residuals(fit_arima)
+
+# Perform the Q-test
+Box.test(residuals, type="Ljung-Box")
 ```
 
 # 6 month forecast with auto.ARIMA model
@@ -299,15 +321,20 @@ print(summary(fcast2))
 ```
 
 
+
+
+--------------------------------------------------
+
+
+
+
 # Q-test for white-noise
 
 Box.testmodel = y, lag=10 type="Ljung-Box")
 Null Hypothesis : No serial correlation up to __ lags.
-A joint test that hthere is no serial correlation upto n lags.
+A joint test that there is no serial correlation up to n lags.
 p-value over 0.05 means we cannot reject Null Hypothesis of no serial correlation.
 p-value less 0.05 means we cannot reject Null Hypothesis of no serial correlation.
-
-
 
 
 # Down the rabbit hold
