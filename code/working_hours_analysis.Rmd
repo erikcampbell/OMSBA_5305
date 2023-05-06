@@ -15,12 +15,12 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-library(urca)
+library(urca) # dickey-fuller ur.df
 library(dynlm)
 library(readxl)
 library(forecast)
 library(tidyverse)
-library(tseries) 
+library(tseries) # dickey-fuller adf.test 
 library(fpp2)
 library(knitr)
 library(stats)
@@ -297,7 +297,7 @@ print(summary(fcasts))
 # Fit Model MA(1) ARMA(0,0,1)
 ```{r}
 ma_1 <- arima(working_hours_diff, order = c(0,0,1))
-summary(ma_1) # where is R^2?  
+summary(ma_1) # RMSE = 1.292029 
 AIC(ma_1)
 #[1] 689.4633
 BIC(ma_1)
@@ -305,6 +305,8 @@ BIC(ma_1)
 checkresiduals(ma_1)
 plot(ma_1)
 ```
+
+The MA(1) resulted in RMSE of 1.292029, suggesting this model estimated values are 1.292029 units (mean aggregate hours indexed to base 2007) away from actual values. The RMSE was higher than ARMA(2,0,2) model at RMSE of 1.2737 and the AIC was only marginally lower at 689.4633 vs ARMA (2,0,2) value of 689.72.   
 
 ```{r}
 # Q-Test Check
@@ -329,7 +331,7 @@ print(summary(fcast_ma1))
 # Fit Model MA(2) (0,0,2)
 ```{r}
 ma_2 <- arima(working_hours_diff, order = c(0,0,2))
-summary(ma_2) # where is R^2? 
+summary(ma_2) # RMSE = 1.274435
 AIC(ma_2)
 #[1] 685.9272 
 BIC(ma_2)
@@ -337,6 +339,9 @@ BIC(ma_2)
 checkresiduals(ma_2) # no spikes
 plot(ma_2)
 ```
+
+The MA(2) model gave us a RMSE of 1.274435 and AIC of 685.9272. This was better than MA(1) which gave us 
+RMSE of 1.292029 and AIC of 689.4633.  MA(2), consisting of our time-series data transformed by first difference, has provided the lowest RMSE and lowest AIC/BIC of the three models.
 
 ```{r}
 # Q-Test Check
@@ -446,10 +451,10 @@ ggPacf(res, lag = 12)
 
 # Experiment with trend and seasonality present and modeling
 ```{r}
-diff4 = diff(working_hours_ts, 4)
-diff1and4 = diff(diff4,1)
-acf2(diff1and4,24) # consider increasing
-acf1(diff4, 24)
+#diff4 = diff(working_hours_ts, 4)
+#diff1and4 = diff(diff4,1)
+#acf2(diff1and4,24) # consider increasing
+#acf1(diff4, 24)
 ```
 
 
