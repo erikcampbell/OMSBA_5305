@@ -1,6 +1,6 @@
 ---
 title: "working_hours_analysis"
-author: "The Group"
+author: "Group 3"
 date: "`r Sys.Date()`"
 output: 
   html_document:
@@ -25,17 +25,59 @@ library(fpp2)
 library(knitr)
 library(stats)
 library(ggpubr)
+library(scales)
 ```
 
 https://fred.stlouisfed.org/series/AWHAE
-Once again, our data is FRED creating an index (2007=100) of aggregate weekly hours reported on a monthly basis. The indexes of aggregate weekly hours are calculated by dividing the current month's aggregate hours by the average of the 12 monthly figures, for the base year (2007).
+Our data is FRED creating an index (2007=100) of aggregate weekly hours reported on a monthly basis. The indexes of aggregate weekly hours are calculated by dividing the current month's aggregate hours by the average of the 12 monthly figures, for the base year (2007).
 
-# Read in the Data
-```{r, echo=FALSE}
+# Read Data & EDA 
+```{r, echo=FALSE, warning=FALSE}
+# Read in Data
 working_hours = read_excel("../data/ch10_Weekly_Hours.xls")
 
-# Convert the date column to a date format
-working_hours$observation = as.Date(working_hours$observation_date)
+# Create covid and recession indicators associated with time.
+working_hours1 <- working_hours %>%
+  mutate(year = year(observation_date),
+         month = month(observation_date),
+         year_month = format(as.Date(observation_date), '%Y-%m'),
+         covid_period_type = as_factor(case_when(
+            observation_date < '2020-02-01' ~'Pre_Covid', 
+            observation_date >= '2020-02-01' & observation_date < '2020-05-01' ~'Covid', 
+            observation_date >= '2020-05-01' ~'Post_Covid')),
+          recession_period = as_factor(case_when(
+            observation_date < '2007-12-01' ~ 'no_recession',
+            observation_date >= '2007-12-01' & observation_date < '2008-07-01' ~ 'recession',
+            observation_date >= '2008-07-01' & observation_date < '2020-02-01' ~ 'no_recession',
+            observation_date >= '2020-02-01' & observation_date <='2020-05-01' ~ 'recession',
+            observation_date >= '2020-05-01' ~ 'no_recession')
+                                      )
+        )
+```
+
+```{r, echo = FALSE}
+# create plot of raw data
+plot_work_hours <- ggplot(working_hours1, aes(x = observation_date, 
+                                             y = hours_worked_index)) +
+  geom_line() +
+  stat_smooth(color = "blue") +
+  geom_rect(aes(xmin=as.POSIXct('2020-02-01'), xmax=as.POSIXct('2020-04-01'), ymin=-Inf, ymax=Inf),                         linetype = 'dashed',color="light green", fill = 'light green', alpha=.01) +
+  
+  geom_rect(aes(xmin=as.POSIXct('2007-12-01'), xmax=as.POSIXct('2008-07-01'), ymin=-Inf, ymax=Inf),                         linetype = 'dashed',color="light green", fill = 'light green', alpha=.01) +
+
+  labs(x = 'Date', y = 'Indexed Working Hours',
+  title = 'Mar 2006 - MAR 2023 Agg. Weekly Work Hours Indexed(2007=100)')
+plot_work_hours
+```
+
+# Summary Stats Raw Data
+```{r, echo=FALSE}
+# summary statistics for raw data
+sum_stats <- working_hours1 %>%
+  group_by(year, month) %>%
+  summarize(count = n(), mean = mean(hours_worked_index), median = median(hours_worked_index), mode(hours_worked_index), sd = sd(hours_worked_index)
+            )
+sum_stats
 
 # Create a time series object
 working_hours_ts = ts(working_hours$hours_worked_index, 
@@ -43,13 +85,24 @@ working_hours_ts = ts(working_hours$hours_worked_index,
                        start = c(2006, 3))
 ```
 
-# Exploring the Data
-```{r, echo=FALSE}
-# Plot the Data to visually check for stationarity
-autoplot(working_hours_ts) + 
-  xlab("Date") + 
-  ylab("Indexed Working Hours") +
-  ggtitle("Agg. Weekly Work Hours Indexed(2017=100) Over Time(reported monthly)")
+```{r, echo = FALSE}
+# density plot for raw data
+plot_work_hours1_density <- working_hours1 %>%
+  ggplot(aes(x = hours_worked_index)) +
+  geom_density() +
+  labs(x = "index hours 2007 =100", y = "percent", title = "Raw Data Density: MAR 2006-MAR 2023 Monthly", 
+  scale_y_continuous(labels = scales::percent_format(accuracy = .1)))
+plot_work_hours1_density
+
+# histogram plot for raw data
+plot_work_hours1_hist2 <- working_hours1 %>%
+  ggplot(aes(x = hours_worked_index)) +
+  geom_histogram() +
+    labs(x = "index hours 2007 =100", y = "percent", 
+        title = "Raw Data Histogram: MAR 2006-MAR 2023 Monthly",
+        scale_y_continuous(labels = scales::percent_format(accuracy = .1))
+        )
+plot_work_hours1_hist2
 ```
 
 ```{r, echo=FALSE}
@@ -65,9 +118,10 @@ ggplot() +
 }
 ts_plot_season(working_hours_ts)
 ```
+
 The Q1 and Q4 are slightly higher than Q2 and Q3 as present in the boxplot, consider taking a first and fourth difference?  Wait until we learn more about Seasonality and tools.
 
-```{r}
+```{r, echo=FALSE}
 ## Seasonality check 
 ggseasonplot(working_hours_ts) +
   ylab("Index of Aggregated Weekly Hours Worked") +
@@ -107,10 +161,9 @@ The width and height of seasonal cycles over time is predictable and trend is fa
 # Plot the autocorrelation and partial autocorrelation functions
 ggtsdisplay(working_hours_ts) # lag = 36
 ```
-
 Once again, our data is FRED creating an index (2007=100) of aggregate weekly hours reported on a monthly basis.  The indexes of aggregate weekly hours are calculated by dividing the current month's aggregate hours by the average of the 12 monthly figures, for the base year (2007). 
 
-We see a gradual ACF decay which suggests the data has a moving average component. Which when then looking at the PACF we can see that there is one sharp spike at the start. These two things suggest an MA of order 1 and 2 and AR(1) are worth exploring in our modeling process.
+We see a gradual ACF decay which suggests the data has a moving average component. Which when then looking at the PACF we can see that there is one sharp spike at the start. These two things suggest an MA of order 1 and 2 and ARMA process are worth exploring in our modeling process.
 
 ```{r, echo=FALSE}
 acf <- ggAcf(working_hours_ts,  
@@ -184,7 +237,7 @@ ggsubseriesplot(working_hours_diff) +
 
 We can see that adding in the first difference makes us much more trend-stationary and checking seasonality from 2006 through 2023 it can be observed that the 2008 Great Recession and Covid are still outlier periods. The MA(1), MA(2) and AR(2) models are still intuitive models to further research for modeling. 
 
-The COVID spike remains and will need to be addressed. With ACF and PACF spikes at the second lag suggests that a combined ARMA model of order 2 may be appropriate to consider. --*EC has question
+The COVID spike remains and will need to be addressed. With ACF and PACF spikes at the second lag suggests that a combined ARMA model of order 2 may be appropriate to consider.
 
 Now the Augmented Dickey-Fuller test is done on the differenced data.
 ```{r, echo=FALSE, warning=FALSE}
@@ -202,24 +255,17 @@ adf.test(working_hours_diff, k = 1) # -11.866, lag 1, p-value = .01
 ```
 
 ```{r}
-df_check2 <- ur.df(working_hours_diff, lags = 5)
-summary(df_check) # t-Stat  =  -0.8495,   f-stat = 0.7773
-                  # critical value: 
-                        #tau2 -3.46 -2.88 -2.57 p-value = .3966 # super-high p-value
-```
 
-```{r}
 #  Phillips Perron Test - more general test than df and don't have to change lags.
 pp.test(working_hours_diff) # not sure mechanics behind this besides a youtube video, cannot interpret to confirm adf or ur.df findings.
 ```
 
 Dickey-Fuller suggests that we have stationary data now, as the p-value of 0.01 is below 0.05 and we can reject the null hypothesis that this data is not stationary. While great, we can do better. 
 
-We'll probably need to add an indicator variable for the covid pandemic and an interaction term with the ARMA term. Which should hopefully capture the pandemic seasonality (affect on deterministic and stochastic trends?), which is a black swan event. Basically, its a term that dictates forecasting if we find ourselves in a pandemic the model could "adequately" forecast through it. (For debate: drop Covid lockdown months as outlines?-Erik) 
+We'll probably need to add an indicator variable for the covid pandemic and an interaction term with the ARMA term. Which should hopefully capture the pandemic seasonality (affect on deterministic and stochastic trends?), which is a black swan event. Basically, its a term that dictates forecasting if we find ourselves in a pandemic the model could "adequately" forecast through it.
 
 Indicator variable is binary, basically in pandemic or not. It's important to restate that this model would not be able to predict a pandemic but would would help forecasting working hours in a pandemic.
 
-remove me?, I was following professor videos?(EC)
 ```{r}
 model <- dynlm(working_hours_diff ~ stats::lag(working_hours_ts, -1)) # 
 summary(model) # estimation output
@@ -247,29 +293,13 @@ ggAcf(res)
 ggPacf(res) # yes, no large spikes and residuals are white-noise
 ```
 
-# prepare to forecast
-```{r, echo=FALSE}
-model2 <- dynlm(working_hours_diff ~ stats::lag(working_hours_diff,-1) + 0) #AR(1) w/o constant for differenced series
-summary(model2)
-
-# Coefficients:
-                                 #  Estimate Std. Error t value Pr(>|t|)
-# stats::lag(working_hours_diff, -1) -0.01800    0.07033  -0.256    0.798
-# Adjusted R-squared:  -0.004625
-# F-statistic: 0.06551 on 1 and 202 DF,  p-value: 0.7982
-
-AIC(model2)
-#[1] 685.9268
-BIC(model2)
-#[1] 692.5532
-```
-
 # Fit model ARMA(2,0,2)
 ```{r, echo=FALSE}
 # Fit an ARMA model with order of 2 for both terms.
 model = arima(working_hours_diff, order = c(2, 0, 2))
 summary(model)
 plot(model)
+checkresiduals(model)
 ```
 
 So we have a reasonably good fit here with a ARMA(2,2) model the AIC is 689.72 which is relatively low suggesting a good fit. As well RMSE is 1.2737 which suggests that this models predictions are roughly 1.27 units, or in our case hours, away from actual values. This is a good start.
@@ -292,6 +322,7 @@ fcasts = forecast(model, h=6)
 
 autoplot(fcasts)
 print(summary(fcasts))
+
 ```
 
 # Fit Model MA(1) ARMA(0,0,1)
@@ -363,7 +394,6 @@ autoplot(fcast_ma2, include = 12)
 print(summary(fcast_ma2))
 ```
 
-
 --------------------------------------------------------------------------------
 Fit on ARIMA model- this is for later as we go futher into seasonal ARIMA models.
 d= 1 takes first diff of orig. data behind scenes. D=1 takes out first seasonal difference.
@@ -422,7 +452,7 @@ Box.testmodel = y, lag=10 type="Ljung-Box")
 Null Hypothesis : No serial correlation up to __ lags.
 A joint test that there is no serial correlation up to n lags.
 p-value over 0.05 means we cannot reject Null Hypothesis of no serial correlation.
-p-value less 0.05 means we cannot reject Null Hypothesis of no serial correlation.
+p-value less 0.05 means we can reject Null Hypothesis of no serial correlation.
 
 
 # Down the rabbit hold
