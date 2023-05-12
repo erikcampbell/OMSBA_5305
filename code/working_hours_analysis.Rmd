@@ -26,12 +26,15 @@ library(knitr)
 library(stats)
 library(ggpubr)
 library(scales)
+library(datplot)
+library(kableExtra)
+library(ggannotate) # this needs work
 ```
 
 https://fred.stlouisfed.org/series/AWHAE
 Our data is FRED creating an index (2007=100) of aggregate weekly hours reported on a monthly basis. The indexes of aggregate weekly hours are calculated by dividing the current month's aggregate hours by the average of the 12 monthly figures, for the base year (2007).
 
-# Read Data & EDA 
+# EDA 
 ```{r, echo=FALSE, warning=FALSE}
 # Read in Data
 working_hours = read_excel("../data/ch10_Weekly_Hours.xls")
@@ -39,73 +42,203 @@ working_hours = read_excel("../data/ch10_Weekly_Hours.xls")
 # Create covid and recession indicators associated with time.
 working_hours1 <- working_hours %>%
   mutate(year = year(observation_date),
-         month = month(observation_date),
-         year_month = format(as.Date(observation_date), '%Y-%m'),
-         covid_period_type = as_factor(case_when(
-            observation_date < '2020-02-01' ~'Pre_Covid', 
-            observation_date >= '2020-02-01' & observation_date < '2020-05-01' ~'Covid', 
-            observation_date >= '2020-05-01' ~'Post_Covid')),
-          recession_period = as_factor(case_when(
-            observation_date < '2007-12-01' ~ 'no_recession',
-            observation_date >= '2007-12-01' & observation_date < '2008-07-01' ~ 'recession',
-            observation_date >= '2008-07-01' & observation_date < '2020-02-01' ~ 'no_recession',
-            observation_date >= '2020-02-01' & observation_date <='2020-05-01' ~ 'recession',
-            observation_date >= '2020-05-01' ~ 'no_recession')
-                                      )
-        )
-```
-
-```{r, echo = FALSE}
-# create plot of raw data
-plot_work_hours <- ggplot(working_hours1, aes(x = observation_date, 
-                                             y = hours_worked_index)) +
-  geom_line() +
-  stat_smooth(color = "blue") +
-  geom_rect(aes(xmin=as.POSIXct('2020-02-01'), xmax=as.POSIXct('2020-04-01'), ymin=-Inf, ymax=Inf),                         linetype = 'dashed',color="light green", fill = 'light green', alpha=.01) +
-  
-  geom_rect(aes(xmin=as.POSIXct('2007-12-01'), xmax=as.POSIXct('2008-07-01'), ymin=-Inf, ymax=Inf),                         linetype = 'dashed',color="light green", fill = 'light green', alpha=.01) +
-
-  labs(x = 'Date', y = 'Indexed Working Hours',
-  title = 'Mar 2006 - MAR 2023 Agg. Weekly Work Hours Indexed(2007=100)')
-plot_work_hours
-```
-
-# Summary Stats Raw Data
-```{r, echo=FALSE}
-# summary statistics for raw data
-sum_stats <- working_hours1 %>%
-  group_by(year, month) %>%
-  summarize(count = n(), mean = mean(hours_worked_index), median = median(hours_worked_index), mode(hours_worked_index), sd = sd(hours_worked_index)
-            )
-sum_stats
+         month = month(observation_date))    # 
+        # year_month = format(as.Date(observation_date), '%Y-%m'),
+        # year_month = as.factor(year_month),
+        # covid_period_type = as_factor(case_when(
+         #   observation_date < '2020-02-01' ~'Pre_Covid', 
+          #  observation_date >= '2020-02-01' & observation_date < '2020-05-01' ~'Covid', 
+          #  observation_date >= '2020-05-01' ~'Post_Covid')),
+        #  recession_period = as_factor(case_when(
+         #   observation_date < '2007-12-01' ~ 'no_recession',
+          #  observation_date >= '2007-12-01' & observation_date < '2008-07-01' ~ 'recession',
+          #  observation_date >= '2008-07-01' & observation_date < '2020-02-01' ~ 'no_recession',
+          #  observation_date >= '2020-02-01' & observation_date <='2020-05-01' ~ 'recession',
+          #  observation_date >= '2020-05-01' ~ 'no_recession')
 
 # Create a time series object
 working_hours_ts = ts(working_hours$hours_worked_index, 
-                       frequency = 12, 
-                       start = c(2006, 3))
+                      frequency = 12,
+                      start = c(2006, 3))
+
+# create First Difference of Hours Worked Index
+working_hours_diff = diff(working_hours_ts)
+
+# Create a Second Difference of Hours Worked Index
+working_hours_sec_diff <- diff(working_hours_diff)
+
 ```
 
+## Plot Raw Data
 ```{r, echo = FALSE}
-# density plot for raw data
+plot_work_hours <- ggplot(working_hours1, aes(x = observation_date, 
+                                             y = hours_worked_index)) +
+  geom_line(size = 1) +
+  stat_smooth(color = "blue", size =.4) +
+  geom_rect(aes(xmin=as.POSIXct('2020-02-01'), xmax=as.POSIXct('2020-04-01'), ymin=-Inf, 
+                ymax=Inf),linetype = 'dashed',color="light green", fill = 'light green', alpha=.01) +
+  
+  geom_rect(aes(xmin=as.POSIXct('2007-12-01'), xmax=as.POSIXct('2008-07-01'), ymin=-Inf, ymax=Inf), 
+            linetype = 'dashed',color="light green", fill = 'light green', alpha=.01) +
+  geom_hline(yintercept = 100, linetype = "dashed", color = "red") +
+
+  labs(x = 'Date', y = 'Indexed Working Hours',
+      title = 'Mar 2006 - MAR 2023 Agg. Weekly Work Hours Index Indexed(2007=100)', 
+      subtitle =  'Recession(s) highlighed') +
+  theme(axis.text.y=element_text(face="bold", color="black", size=10, angle=0),
+      axis.ticks.y=element_blank(),
+      axis.title = element_text(face = "bold", color="black", size=10),
+      axis.text.x = element_text(face = "bold", color="black", size=10),
+      panel.background =element_rect('White'),
+      legend.position = "none")
+
+plot_work_hours
+```
+## Density Plot
+```{r, echo = FALSE}
+# Density Plot for Raw Data
 plot_work_hours1_density <- working_hours1 %>%
   ggplot(aes(x = hours_worked_index)) +
-  geom_density() +
-  labs(x = "index hours 2007 =100", y = "percent", title = "Raw Data Density: MAR 2006-MAR 2023 Monthly", 
-  scale_y_continuous(labels = scales::percent_format(accuracy = .1)))
+  geom_density(color="darkblue", fill="lightblue",alpha=0.7) +
+  labs(x = "Index Hours 2007 =100", y = "", 
+       title = "Raw Data Density", subtitle = "MAR2006-MAR2023") 
+
 plot_work_hours1_density
 
-# histogram plot for raw data
-plot_work_hours1_hist2 <- working_hours1 %>%
-  ggplot(aes(x = hours_worked_index)) +
-  geom_histogram() +
-    labs(x = "index hours 2007 =100", y = "percent", 
-        title = "Raw Data Histogram: MAR 2006-MAR 2023 Monthly",
-        scale_y_continuous(labels = scales::percent_format(accuracy = .1))
-        )
-plot_work_hours1_hist2
+# Density Plot for First Difference of Hours Worked Index
+plot_work_hours_diff_density <- working_hours_diff %>%
+  ggdensity(color="darkblue", fill="lightblue",alpha=0.7) +
+  labs(x = "", y = "", 
+       title = "First Difference Hours Worked Density", subtitle = "") +
+  xlim(-2.5,2.5)
+
+plot_work_hours_diff_density
+
+# # Density Plot for Second Difference of Hours Worked Index
+plot_work_hours_sec_diff_density <- working_hours_diff %>%
+  ggdensity(color="darkblue", fill="lightblue",alpha=0.7) +
+  labs(x = "", y = "", 
+       title = "Second Difference Hours Worked Density", subtitle = "") +
+  xlim(-2.5,2.5)
+
+plot_work_hours_sec_diff_density
+
+# Combine all Three Density Plots
+ggarrange(plot_work_hours1_density, plot_work_hours_diff_density,
+          plot_work_hours_sec_diff_density, nrow =1) 
+
 ```
 
-```{r, echo=FALSE}
+## Histogram data
+```{r, echo = FALSE, warning=FALSE}
+# Histogram - Basic 
+hist_base <- gghistogram(working_hours_ts, fill = "blue", color = 'black', alpha = 0.50,
+                    title ='Mar 2006 - MAR 2023', 
+                    subtitle = 'Agg. Weekly Work Hours Index Indexed(2007=100)',
+                    xlab = 'Index Value: Base (2007 = 100)', ylab = 'Frequency')  +
+  geom_density(color = 'red' )
+hist_base
+
+# Histogram - Basic for First Difference of Hours Worked Index
+hist_diff <- gghistogram(working_hours_diff, fill = "blue", color = 'black', alpha = 0.50,
+                    title ='Mar 2006 - MAR 2023', 
+                    subtitle = 'Agg. Weekly Work Hours Index Indexed(2007=100)',
+                    xlab = 'Index Value: Base (2007 = 100)', ylab = 'Frequency')  +
+                    xlim(-5,5) +
+  geom_density(color = 'red' )
+hist_diff
+
+# Histogram - Basic for Second Difference of Hours Worked Index
+hist_sec_diff <- gghistogram(working_hours_sec_diff, fill = "blue", color = 'black', alpha = 0.50,
+                    title ='Mar 2006 - MAR 2023', 
+                    subtitle = 'Agg. Weekly Work Hours Index Indexed(2007=100)',
+                    xlab = 'Index Value: Base (2007 = 100)', ylab = 'Frequency')  +
+                    xlim(-5,5) +
+  geom_density(color = 'red' )
+hist_sec_diff
+
+# Combination of Histograms with Raw Data, First Difference & Second Difference
+hist_combo <- ggarrange(hist_base, hist_diff, hist_sec_diff, nrow = 3, label.y  = 0.3,
+                        font.label = list(size = 8, color = "black", face = "bold", family = NULL))
+plot(hist_combo)
+```
+
+## Summary Stats Grouped Year - numerical
+```{r, echo=FALSE, warning=FALSE}
+sum_stats_year <- working_hours1 %>%
+  group_by(year) %>%
+  summarize(count = n(),mean = round(mean(hours_worked_index), 2), median = median(hours_worked_index),
+            mode(hours_worked_index), sd = round(sd(hours_worked_index), 2)
+            )
+sum_stats_year
+# create a table for grouped yearly stats for rmd
+kable(sum_stats_year,digits = 2, caption = "Summary Stats Grouped Year")
+```
+
+## Summary Stats Grouped Year - plot
+```{r, echo = FALSE, warning= FALSE}
+stats_year_base <- working_hours1 %>%
+  select(year, hours_worked_index) %>%
+  group_by(year) %>%
+  summarise(year, avg = mean(hours_worked_index), median = median(hours_worked_index),
+            stand_dev = sd(hours_worked_index)  
+            ) %>%
+  ggplot(aes(x = reorder(year, avg), y = avg)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = avg - stand_dev, ymax = avg + stand_dev)) +
+  coord_flip() +
+  labs(title = 'MAR 2006 - Mar2023: Annual Mean & Variance', subtitle = '', 
+       y = "Index Value with Base Year 2007 = 100", x = '') +
+  theme(axis.text.y=element_text(face="bold", color="black", size=10, angle=0),
+      axis.ticks.y=element_blank(),
+      axis.title = element_text(face = "bold", color="black", size=10),
+      axis.text.x = element_text(face = "bold", color="black", size=10),
+      panel.background =element_rect('White'),
+      legend.position = "none")
+
+stats_year_base
+```
+
+## Summary Stats Grouped Month - numerical
+```{r, echo=FALSE, warning=FALSE}
+sum_stats_month <- working_hours1 %>%
+  mutate(month = (month.abb[month])) %>%
+  group_by(month) %>%
+  summarize(count = n(), mean = round(mean(hours_worked_index), 2), median = median(hours_worked_index), mode(hours_worked_index), sd = round(sd(hours_worked_index), 2)
+            )
+sum_stats_month
+
+# create a table for grouped yearly stats for rmd
+kable(sum_stats_month,digits = 2, caption = "Summary Stats Grouped Month")
+```
+
+## Summary Stats Grouped Month - Plot
+```{r, echo=FALSE, warning= FALSE}
+stats_month_base <- working_hours1 %>%
+  select(year, month, hours_worked_index) %>%
+  mutate(month_name = as.factor(month.abb[month])) %>%
+  group_by(month_name) %>%
+  summarize(month_name, avg = mean(hours_worked_index), median = median(hours_worked_index),
+            stand_dev = sd(hours_worked_index)  
+            ) %>%
+  ggplot(aes(x = reorder(month_name, avg), y = avg)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = avg - stand_dev, ymax = avg + stand_dev)) +
+  coord_flip() +
+  labs(title = 'MAR 2006 - Mar 2023 Variance by Month  Base 2007 = 100', subtitle = 'Min, Mean, Max', 
+       y = "", x = '') +
+  theme(axis.text.y=element_text(face="bold", color="black", size=10, angle=0),
+      axis.ticks.y=element_blank(),
+      axis.title = element_text(face = "bold", color="black", size=10),
+      axis.text.x = element_text(face = "bold", color="black", size=10),
+      panel.background =element_rect('White'),
+      legend.position = "none")
+
+stats_month_base
+```
+
+## Boxplot by Month to Evaluate Seasonality
+```{r, echo=FALSE, warning=FALSE}
 # Boxplot for cycle associations by month
 ts_plot_season <- function(x = x) {
 season <- cycle(x)
@@ -113,24 +246,87 @@ season.factor <- factor(season)
 ggplot() + 
   geom_boxplot(mapping = aes(x = season.factor,
                              y = x)) +
-  labs(x = "Month", y =  "Index of Aggregated Weekly Hours Worked",
-       title = "Seasonality/Cycles for Agg Weekly Hours Indexed(2007 = 100) reported monthly")
+  labs(x = "Month", y =  "Index Hours Worked",
+       title = "Seasonality/Cycles: Agg Weekly Hours Indexed(2007 = 100) reported monthly") +
+  theme(axis.text.y=element_text(face="bold", color="black", size=10, angle=0),
+      axis.ticks.y=element_blank(),
+      axis.title = element_text(face = "bold", color="black", size=10),
+      axis.text.x = element_text(face = "bold", color="black", size=10),
+      panel.background =element_rect('White'),
+      legend.position = "none")
 }
-ts_plot_season(working_hours_ts)
+raw_season <- ts_plot_season(working_hours_ts)
+raw_season  
+
+# First Difference of Hours Worked Index and Seasonality Check
+first_diff_season <- ts_plot_season(working_hours_diff)
+first_diff_season
+
+# Second Difference of Hours Worked Index and Seasonality Check
+sec_diff_season <- ts_plot_season(working_hours_sec_diff)
+sec_diff_season
+  
+# Combine Raw Data, First Difference and Second Difference into One Plot
+ggarrange(raw_season, first_diff_season, sec_diff_season, nrow =3)
 ```
 
-The Q1 and Q4 are slightly higher than Q2 and Q3 as present in the boxplot, consider taking a first and fourth difference?  Wait until we learn more about Seasonality and tools.
+The Q1 and Q4 are slightly higher than Q2 and Q3 as present in the box plot which is indicative of a cycle.
 
+# Suberies Monthly Variance Across all time in time series
+```{r}
+# Orignal Work_hours timeseries
+month_sub_series <- ggsubseriesplot(working_hours_ts)
+
+# Seasonal First Difference sub-series plot
+month_sub_series_diff <- ggsubseriesplot(working_hours_diff) +
+    ggtitle("Seasonal Plot: First Differenced Data Change for Working Hours Index")
+
+# Seasonal Second Difference sub-series plot
+month_sub_series_sec_diff <- ggsubseriesplot(working_hours_sec_diff) +
+    ggtitle("Seasonal Plot: Second Differenced Data Change for Working Hours Index")
+
+# Combined Subseries (Raw, First Difference, Second Difference)
+combo_sub_series <- ggarrange(month_sub_series, month_sub_series_diff,month_sub_series_sec_diff)
+combo_sub_series
+```
+
+## Scatter plot by Year to Evaluate Seasonality
 ```{r, echo=FALSE}
 ## Seasonality check 
-ggseasonplot(working_hours_ts) +
-  ylab("Index of Aggregated Weekly Hours Worked") +
-  ggtitle("Seasonal Plot: Index of Aggregated & Indexed (2007=100) Weekly Working Hours for all Years")
+season_raw <- ggseasonplot(working_hours_ts) +
+  ylab("Index Hours") +
+  ggtitle("Raw:All Years Seasonal Plot") +
+  theme_classic2()
+season_raw
+
+# First Difference of Hours Worked Index and Seasonality Check
+season_first_diff <- ggseasonplot(working_hours_diff) +
+  ylab("Index Hours") +
+  ggtitle("First Difference: Seasonal Plot All Years") +
+  theme_classic2()
+season_first_diff
+
+# Second Difference of Hours Worked Index and Seasonality Check
+season_sec_diff <- ggseasonplot(working_hours_sec_diff) +
+  ylab("Index Hours") +
+  ggtitle("2nd Difference: Seasonal Plot All Years") +
+  theme_classic2()
+season_sec_diff
+
+# Combined Plot of Raw vs. First Differenced Hours Worked Index
+combo_raw_diff_scatter <- ggarrange(season_raw, season_first_diff, nrow = 2, common.legend = TRUE, 
+          legend = 'right', label.x = '')
+combo_raw_diff_scatter
+
+# Combined Plot of Raw vs. First Differenced Hours Worked Index
+combo_diff_sec_diff_scatter <- ggarrange(season_raw, season_sec_diff,
+          nrow = 2, common.legend = TRUE, legend = 'right', label.x = '')
+combo_diff_sec_diff_scatter
 ```
 
 There are 17 periods for each month with April being lowest aggregated and indexed to 2007 with a value 99.9, and December was highest aggregated and indexed value of 102.9 hours against base 2007. Seasonality plot for all years and months demonstrates the Great Recession and Covid period.
 
-# Decompose data to inspect trend, seasonal and random events
+## Decompose data to inspect trend, seasonal and random events
 ```{r, echo=FALSE}
 decomp_work_hours_ts <- decompose(working_hours_ts, "additive") # Yt = Tt + St + Rt
 plot(decomp_work_hours_ts)
@@ -144,34 +340,79 @@ plot(decomp_work_hours_ts$figure, main = " Effects & Change for the 12 Months",
      ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100",
      xlab = "Month")
 
-# Numerical Data for Decomposition
-#decomp_work_hours_ts$trend
-#decomp_work_hours_ts$seasonal # The seasonal effect values are repeated each year (row).
-#decomp_work_hours_ts$random
-#decomp_work_hours_ts$x
-#decomp_work_hours_ts$figure # The elements of $figure are the effects for the 12 months
+# First Differenced Hours Worked Index decomposition
+decomp_work_hours_diff <- decompose(working_hours_diff, "additive") # Yt = Tt + St + Rt
+plot(decomp_work_hours_diff)
+plot(decomp_work_hours_diff$trend, main = "Differenced Data -Trend", 
+     ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100")
+plot(decomp_work_hours_diff$seasonal, main = "Differenced Data Seasonal Data", 
+     ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100")
+plot(decomp_work_hours_diff$random, main ="Differenced Data Error Term Over Time", 
+     ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100" )
+plot(decomp_work_hours_diff$figure, main = "Differenced Data Effects & Change for the 12 Months",
+     ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100",
+     xlab = "Month")
+
+# Second Differenced Hours Worked Index decomposition
+decomp_work_hours_sec_diff <- decompose(working_hours_sec_diff, "additive") # Yt = Tt + St + Rt
+plot(decomp_work_hours_sec_diff)
+plot(decomp_work_hours_sec_diff$trend, main = "2nd Difference Data -Trend", 
+     ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100")
+plot(decomp_work_hours_sec_diff$seasonal, main = "2nd Difference Data Seasonal Data", 
+     ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100")
+plot(decomp_work_hours_sec_diff$random, main ="2nd Difference Data Error Term Over Time", 
+     ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100" )
+plot(decomp_work_hours_sec_diff$figure, main = "2nd Difference Data Effects & Change for the 12 Months",
+     ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100",
+     xlab = "Month")
+
 ```
 
-The width and height of seasonal cycles over time is predictable and trend is fairly linear,  or seasonal variation is relatively constant over time. Thus, decomposition additively (Yt = Tt + St + Rt) seems was appropriate. Taking the first difference is the pragmatic and logical next next step to deal with persistence and trends.  First, let's check correlograms.
+The width and height of seasonal cycles over time is predictable and trend is fairly linear,  or seasonal variation is relatively constant over time. Thus, decomposition additively (Yt = Tt + St + Rt) seems appropriate. Taking the first difference is the pragmatic and logical next next step to deal with persistence and trends.  First, let's check correlograms.
 
 [Resource](https://towardsdatascience.com/time-series-from-scratch-decomposing-time-series-data-7b7ad0c30fe7#:~:text=an%20increasing%20trend.-,Additive%20trend%20and%20multiplicative%20seasonality,of%20seasonal%20periods%20over%20time.&text=Once%20again%2C%20the%20trend%20is,periods%20have%20increased%20over%20time.)
 
-# Correlograms
+## Correlograms, lag = 36
 ```{r, echo=FALSE}
 # Plot the autocorrelation and partial autocorrelation functions
 ggtsdisplay(working_hours_ts) # lag = 36
+
 ```
 Once again, our data is FRED creating an index (2007=100) of aggregate weekly hours reported on a monthly basis.  The indexes of aggregate weekly hours are calculated by dividing the current month's aggregate hours by the average of the 12 monthly figures, for the base year (2007). 
 
 We see a gradual ACF decay which suggests the data has a moving average component. Which when then looking at the PACF we can see that there is one sharp spike at the start. These two things suggest an MA of order 1 and 2 and ARMA process are worth exploring in our modeling process.
 
-```{r, echo=FALSE}
-acf <- ggAcf(working_hours_ts,  
-             main = "ACF of Agg Weekly Hours Indexed(2007 = 100) reported monthly")
-pacf <- ggPacf(working_hours_ts, 
+### Correlograms
+```{r, echo=FALSE, warning=FALSE}
+# create acf/pacf with L = 36
+acf_36 <- ggAcf(working_hours$hours_worked_index, lag.max = 36,  
+            main = "ACF of Agg Weekly Hours Indexed(2007 = 100) reported monthly")
+
+pacf_36 <- ggPacf(working_hours$hours_worked_index, lag.max = 36,
                main = "PACF Agg Weekly Hours Indexed(2007 = 100) reported monthly")
-acf_pacf <- ggarrange(acf, pacf, nrow = 2) # lag = 24
-acf_pacf
+acf_pacf_36 <- ggarrange(acf_36, pacf_36, nrow = 2) # lag = 24
+acf_pacf_36
+
+# create acf/pacf with L = 12
+acf_12 <- ggAcf(working_hours_ts, lag.max = 12,  
+             main = "ACF of Agg Weekly Hours Indexed(2007 = 100) reported monthly")
+pacf_12 <- ggPacf(working_hours_ts, lag.max = 12,
+               main = "PACF Agg Weekly Hours Indexed(2007 = 100) reported monthly")
+acf_pacf_12 <- ggarrange(acf_12, pacf_12, nrow = 2) # lag = 12
+acf_pacf_12 # can we add a table underneath?
+
+# combine both acf/pacf for Lags 12 and Lags 36 into one visual
+acf_pacf_comb <- ggarrange(acf_36, acf_12, pacf_36,pacf_12, nrow = 2, ncol = 2) # lag = 24
+acf_pacf_comb
+
+# numeric acf
+acf_numeric <- acf(working_hours_ts, lag.max = 36, plot = FALSE)
+acf_numeric
+
+# numeric pacf
+pacf_numeric <- pacf(working_hours_ts, lag.max =36, plot = FALSE)
+pacf_numeric
+
 ```
 
 The ACF with first-spike(s) close to one are indicative of an opportunity to transform data, but first let's note the gradual decay in ACF, along with the single spike in PACF are indicative of an AR(1) model application. To confirm our intuition from ACF/PACF let's use Dickey-Fuller to test for unit root and confirm H:0 non-stationary data. Yt = Dt (deterministic) + Zt (stochastic) + Et.  Does Zt have a root?
@@ -182,80 +423,231 @@ if Test Statistic < Critical Values  & p-value < 0.05 => Rejects the null hypoth
 if Test Statistic > Critical Values => failed to reject the null hypothesis (H0:non-stationary).
 the p-value or probability value is the probability of obtaining test results at least as extreme as the results actually observed during the test, assuming that the null hypothesis is correct.
 
-# Dickey-Fuller Check
-Perform the DF test
+## Dickey-Fuller Check Root Check
+```{r, echo=FALSE}
+# Perform the ADF test
+adf_result = ur.df(working_hours_ts, type = "trend", selectlags = "AIC")
+# Print the ADF test results
+summary(adf_result)
+```
+The test statistic in this case is -2.6455. The critical values for the test statistics are also provided, which are -3.99, -3.43, and -3.13 for the 1%, 5%, and 10% significance levels respectively. The p-value of 0.05388 is greater than 0.05, which is close enough to support rejecting it as 0.05 is not a hard limit. It does make sense to calculate the first difference and recheck Dickey-Fuller. 
+
 ```{r, echo=FALSE}
 df_check <- ur.df(working_hours_ts, type = 'drift', lags = 0)
 summary(df_check) # t-Stat  = -0.8495,  f-Stat = 0.7773, 
                   # critical values =-3.46, -2.88, -2.57 p-value = 0.3966
 ```
 
-https://stats.stackexchange.com/questions/24072/interpreting-rs-ur-df-dickey-fuller-unit-root-test-results
 ```{r}
 df_check1 <- ur.df(working_hours_ts, type = "trend", lags = 0)
 summary(df_check) # t-Stat  = -2.636,   f-stat = 2.7999
                   # critical value =-3.99, -3.43, -3.13 p-value = .02466
 ```
 
-As we can see from the above charts and the Dickey-Fuller test this data is not currently stationary (p-value still too high) The first step is to take a first difference to, hopefully, remove the trends.
-
-# Add in a First Difference
+## Add in a First Difference/Second of Hours Worked Index 
 ```{r, echo=FALSE}
-# Compute first differences of the time series
-working_hours_diff = diff(working_hours_ts)
+# # Compute first differences of the Time Series
+# working_hours_diff = diff(working_hours_ts, lag = 1)
+# 
+# # Compute Second Differences of the Time Series
+# working_hours_sec_diff = diff(working_hours_diff, lag = 1)
 
-# plot of first difference data
-autoplot(working_hours_diff) +
-  ggtitle("Time Plot: First Differenced Data Change for Aggregated Monthly Working Hours")
 ```
 
-```{r}
-# Plot the autocorrelation and partial autocorrelation functions
-ggtsdisplay(working_hours_diff)
+## Comparison of First Difference vs. Raw Data
+```{r, echo = FALSE}
+par(mfrow = c(3,1), mex = 0.6, cex = 0.8)
+plot(ts(working_hours$hours_worked_index), main = 'Raw Data', xlab = 'Date', 
+     ylab = 'Index of avg. hours worked-Raw',
+     col = 'red')
+
+plot(working_hours_diff, main = 'First Differenced Data', xlab = 'Date', # call "growth rate" or c
+     ylab = 'First Difference Index Value')
+     lines(working_hours_diff, col = 'blue')
+
+plot(working_hours_sec_diff, main = '2nd Differenced Data', xlab = 'Date', # call "growth rate" or c
+     ylab = '2nd Difference Index Value')
+     lines(working_hours_diff, col = 'blue')
 ```
 
+## Raw/First/Second Difference Plot the autocorrelation and partial autocorrelations
 ```{r}
-acf1 <- ggAcf(working_hours_diff,  
-             main = "Diffferenced ACF of Agg Weekly Hours Indexed(2007 = 100) reported monthly")
-pacf1 <- ggPacf(working_hours_ts, 
-               main = "Differenced PACF Agg Weekly Hours Indexed(2007 = 100) reported monthly")
-acf_pacf1 <- ggarrange(acf1, pacf1, nrow = 2)
-acf_pacf1
+diff_autocor <- ggtsdisplay(working_hours_ts, main = "raw data")
+first_diff_autocor <- ggtsdisplay(working_hours_diff, main = "First Differenced Data")
+sec_diff_autocor <- ggtsdisplay(working_hours_sec_diff, main = "Second Differenced Data")
 ```
 
-```{r}
-# Seasonality check for trend-stationary first differences data
-ggseasonplot(working_hours_diff) +
-  ggtitle("Seasonal Plot: First Differenced Data Change for Aggregated Monthly Working Hours")
+### First Difference Correlograms
+```{r, echo=FALSE}
+# create acf/pacf with L = 36
+acf_36_diff <- ggAcf(working_hours_diff, lag.max = 36,  
+            main = "First Difference ACF - Lag = 36")
+
+pacf_36_diff <- ggPacf(working_hours_diff, lag.max = 36,
+               main = "First Difference PACF - Lag = 36")
+acf_pacf_36_diff <- ggarrange(acf_36_diff, pacf_36_diff, nrow = 2) # lag = 24
+acf_pacf_36_diff
+
+# create acf/pacf with L = 12
+acf_12_diff <- ggAcf(working_hours_diff, lag.max = 12,  
+             main = "First Difference ACF - Lag = 12")
+pacf_12_diff <- ggPacf(working_hours_diff, lag.max = 12,
+               main = "First Differnce PACF - Lag = 12")
+acf_pacf_12_diff <- ggarrange(acf_12_diff, pacf_12_diff, nrow = 2) # lag = 12
+acf_pacf_12_diff
+
+# combine both acf/pacf for Lags 12 and Lags 36 into one visual
+acf_pacf_comb_diff <- ggarrange(acf_36_diff, acf_12_diff, pacf_36_diff,pacf_12_diff, nrow = 2, ncol = 2) # lag = 24
+acf_pacf_comb_diff
+
+# numeric acf
+acf_numeric <- acf(working_hours_diff, lag.max = 36, plot = FALSE)
+acf_numeric
+
+# numeric pacf
+pacf_numeric <- pacf(working_hours_diff, lag.max =36, plot = FALSE)
+pacf_numeric
+
 ```
 
+### Second Difference Correlograms
 ```{r}
-# Seasonal sub-series plot
-ggsubseriesplot(working_hours_diff) +
-    ggtitle("Seasonal Plot: subseries: First Differenced Data Change for Aggregated Monthly Working Hours")
+# create acf/pacf with L = 36
+acf_36_sec_diff <- ggAcf(working_hours_sec_diff, lag.max = 36,  
+            main = "2nd Diff- ACF - Lag = 36")
+
+pacf_36_sec_diff <- ggPacf(working_hours_sec_diff, lag.max = 36,
+               main = "2nd Diff- PACF - Lag = 36")
+acf_pacf_36_sec_diff <- ggarrange(acf_36_sec_diff, pacf_36_sec_diff, nrow = 2) # lag = 24
+acf_pacf_36_sec_diff
+
+# create acf/pacf with L = 12
+acf_12_sec_diff <- ggAcf(working_hours_sec_diff, lag.max = 12,  
+             main = "2nd Diff- ACF - Lag =12")
+pacf_12_sec_diff <- ggPacf(working_hours_sec_diff, lag.max = 12,
+               main = "2nd Diff- PACF - Lag =12")
+acf_pacf_12_sec_diff <- ggarrange(acf_12_sec_diff, pacf_12_sec_diff, nrow = 2) # lag = 12
+acf_pacf_12_sec_diff # can we add a table underneath?
+
+# combine both acf/pacf for Lags 12 and Lags 36 into one visual
+acf_pacf_comb_sec_diff <- ggarrange(acf_36_sec_diff, acf_12_sec_diff, 
+                                    pacf_36_sec_diff,pacf_12_sec_diff,
+                                    nrow = 2, ncol = 2) # lag = 24
+acf_pacf_comb_sec_diff
+
+# numeric ACF First Difference
+acf_numeric <- acf(working_hours_diff, lag.max = 36, plot = FALSE)
+acf_numeric
+
+# Numeric ACF 2nd Difference
+acf_numeric_sec_diff <- acf(working_hours_sec_diff, lag.max = 36, plot = FALSE)
+acf_numeric_sec_diff
+
+# Numeric PACF First Difference
+pacf_numeric <- pacf(working_hours_diff, lag.max =36, plot = FALSE)
+pacf_numeric
+
+# Numeric PACF 2nd Difference
+pacf_numeric_sec_diff <- pacf(working_hours_sec_diff, lag.max = 36, plot = FALSE)
+pacf_numeric_sec_diff
 ```
 
 We can see that adding in the first difference makes us much more trend-stationary and checking seasonality from 2006 through 2023 it can be observed that the 2008 Great Recession and Covid are still outlier periods. The MA(1), MA(2) and AR(2) models are still intuitive models to further research for modeling. 
 
 The COVID spike remains and will need to be addressed. With ACF and PACF spikes at the second lag suggests that a combined ARMA model of order 2 may be appropriate to consider.
 
-Now the Augmented Dickey-Fuller test is done on the differenced data.
+# Now the Augmented Dickey-Fuller test is done on the differenced data.
+
+Evaluative criteria:
+ 
+if Test Statistic < Critical Values  & p-value < 0.05 => Rejects the null hypothesis (H0:non-stationary).
+if Test Statistic > Critical Values => failed to reject the null hypothesis (H0:non-stationary).
+the p-value or probability value is the probability of obtaining test results at least as extreme as the results actually observed during the test, assuming that the null hypothesis is correct.
+
 ```{r, echo=FALSE, warning=FALSE}
 # Perform the ADF test on the differenced data
-adf.test(working_hours_diff) # -6.5349, lag 5 p-value = .01 which is good as more df stationary
+adf_5 <- adf.test(working_hours_diff)
+adf_5 # -6.5349, lag 5 p-value = .01 which is good as more df stationary
+adf_12 <-adf.test(working_hours_diff, k = 12)
+adf_12 # -3.9101, Lag order = 12, p-value = 0.01473
+adf_36 <- adf.test(working_hours_sec_diff, k = 36)
+adf_36 # -3.576, Lag order = 36, p-value = 0.0369
 ```
 
-Test with different lags and library(tseries). How is interpretation of DF value conducted beside p-value and alternative hypothesis stated?
+## Alternative DF test that presents more information for evaluation
 ```{r}
-adf.test(working_hours_diff, k = 12) # -3.9101, lag 12, p-value = .01
+adf_diff_data_5 = ur.df(working_hours_diff, type = "trend", selectlags = "AIC", lags = 5)
+# Print the ADF test results
+summary(adf_diff_data_5)
+
+# Coefficients:
+#              Estimate Std. Error t value Pr(>|t|)    
+# (Intercept) -0.075836   0.193232  -0.392   0.6951    
+# z.lag.1     -1.192595   0.101433 -11.757   <2e-16 ***
+# tt           0.001643   0.001627   1.009   0.3141    
+# z.diff.lag   0.163068   0.070832   2.302   0.0224 *   
+
+# Value of test-statistic is: -11.7574 46.0794 69.1185  //// p-value: < 2.2e-16 /// Adjusted R-squared:  0.5184
+# Critical values for test statistics: 
+#       1pct  5pct 10pct
+# tau3 -3.99 -3.43 -3.13
+# phi2  6.22  4.75  4.07
+# phi3  8.43  6.49  5.47
+
+# ADF with Second Difference Data
+adf_sec_diff_data_12 <- ur.df(working_hours_diff, type = "trend", selectlags = "AIC", lags = 12)
+# Print the ADF test results
+summary(adf_sec_diff_data_12)
+
+# Call:
+# lm(formula = z.diff ~ z.lag.1 + 1 + tt + z.diff.lag)
+# 
+# Residuals:
+#      Min       1Q   Median       3Q      Max 
+# -16.6866  -0.1802   0.1124   0.2876   3.0687 
+# 
+# Coefficients:
+#              Estimate Std. Error t value Pr(>|t|)    
+# (Intercept) -0.108585   0.211236  -0.514   0.6078    
+# z.lag.1     -1.191974   0.103315 -11.537   <2e-16 ***
+# tt           0.001878   0.001748   1.074   0.2841    
+# z.diff.lag   0.162851   0.072139   2.257   0.0251 *  
+
+# Value of test-statistic is: -11.5373 44.3701 66.555      //// p-value: < 2.2e-16 /// Adjusted R-squared: 0.5178 
+# Critical values for test statistics: 
+#       1pct  5pct 10pct
+# tau3 -3.99 -3.43 -3.13
+# phi2  6.22  4.75  4.07
+# phi3  8.43  6.49  5.47
+
+adf_sec_diff_data_24 <- ur.df(working_hours_diff, type = "trend", selectlags = "AIC", lags = 24)
+# Print the ADF test results
+summary(adf_sec_diff_data_24)
+
+
+# Call:
+# lm(formula = z.diff ~ z.lag.1 + 1 + tt + z.diff.lag)
+# 
+# Residuals:
+#      Min       1Q   Median       3Q      Max 
+# -16.6907  -0.1749   0.1156   0.3003   3.0653 
+# 
+# Coefficients:
+#              Estimate Std. Error t value Pr(>|t|)    
+# (Intercept) -0.133660   0.248271  -0.538   0.5910    
+# z.lag.1     -1.192565   0.106807 -11.166   <2e-16 ***
+# tt           0.002056   0.001990   1.033   0.3029    
+# z.diff.lag   0.163645   0.074591   2.194   0.0296 * 
+
+# Value of test-statistic is: -11.1656 41.5574 62.3361     //// p-value: < 2.2e-16 /// Adjusted R-squared: 0.5172 
+# Critical values for test statistics: 
+#       1pct  5pct 10pct
+# tau3 -3.99 -3.43 -3.13
+# phi2  6.22  4.75  4.07
+# phi3  8.43  6.49  5.47
 ```
 
 ```{r}
-adf.test(working_hours_diff, k = 1) # -11.866, lag 1, p-value = .01
-```
-
-```{r}
-
 #  Phillips Perron Test - more general test than df and don't have to change lags.
 pp.test(working_hours_diff) # not sure mechanics behind this besides a youtube video, cannot interpret to confirm adf or ur.df findings.
 ```
@@ -267,8 +659,8 @@ We'll probably need to add an indicator variable for the covid pandemic and an i
 Indicator variable is binary, basically in pandemic or not. It's important to restate that this model would not be able to predict a pandemic but would would help forecasting working hours in a pandemic.
 
 ```{r}
-model <- dynlm(working_hours_diff ~ stats::lag(working_hours_ts, -1)) # 
-summary(model) # estimation output
+model_dynlm <- dynlm(working_hours_diff ~ stats::lag(working_hours_ts, -1)) # 
+summary(model_dynlm) # estimation output
 
 #Coefficients:
                                 # Estimate Std. Error t value Pr(>|t|)
@@ -276,21 +668,17 @@ summary(model) # estimation output
 #stats::lag(working_hours_ts, -1) -0.01193    0.01404  -0.850    0.397
 # Adjusted R-squared:  -0.001373
 # F-statistic: 0.7217 on 1 and 202 DF,  p-value: 0.3966
-        
-```
 
-```{r}
-AIC(model)
+AIC(model_dynlm)
 # [1] 688.8812
-BIC(model)
+BIC(model_dynlm)
 # [1] 698.8356
-```
 
-```{r, echo=FALSE}
 res <- residuals(model)
 plot(res) # for fun, plot of residuals
 ggAcf(res)
 ggPacf(res) # yes, no large spikes and residuals are white-noise
+        
 ```
 
 # Fit model ARMA(2,0,2)
@@ -347,6 +735,8 @@ residuals <- residuals(ma_1)
 
 # Perform the Q-test
 Box.test(residuals, type="Ljung-Box")
+qqnorm(residuals(ma_1))
+qqline(residuals, col = 'red')
 ```
 
 Our t-stat was 0.0051377 and p-value was .9429 the p-value <.05 and we cannot reject Null Hypothesis of no serial correlations, or residuals are independently distributed.
@@ -357,6 +747,9 @@ fcast_ma1 = forecast(ma_1, h=6)
 
 autoplot(fcast_ma1, include = 12)
 print(summary(fcast_ma1))
+
+# predict and library(coefplot) - to plot multiple coefficients = useful?
+predict(fcast_ma1, n.ahead=6)
 ```
 
 # Fit Model MA(2) (0,0,2)
@@ -382,6 +775,8 @@ residuals <- residuals(ma_2)
 
 # Perform the Q-test
 Box.test(residuals, type="Ljung-Box") # t-stat was 0.0051377, p-value - .9473
+qqnorm(residuals(ma_2))
+qqline(residuals, col = 'red')
 ```
 
 Our t-stat was 0.0051377 p-value of 0.9473 and cannot reject Null Hypothesis there no serial correlation, or H0:The residuals are independently distributed.
@@ -431,6 +826,8 @@ residuals <- residuals(fit_arima)
 
 # Perform the Q-test
 Box.test(residuals, type="Ljung-Box") #  p-value = 0.9687
+qqnorm(residuals(fit_arima))
+qqline(residuals, col = 'red')
 ```
 
 # 6 month forecast with auto.ARIMA model
@@ -455,7 +852,7 @@ p-value over 0.05 means we cannot reject Null Hypothesis of no serial correlatio
 p-value less 0.05 means we can reject Null Hypothesis of no serial correlation.
 
 
-# Down the rabbit hold
+# Down the rabbit hole
 
 
 # Deterministic vs. Stochastic trend.
@@ -490,37 +887,6 @@ ggPacf(res, lag = 12)
 
 Rule of thumb: (H0 is Unit root = TRUE in AR model and t.s. is non-stationary). If ABS value of test statistic is > than tabulated value(critical value), we can reject null. Rule of Thumb = if ABS calculated statistics > critical value, we can reject the null hypothesis.
 
-crap from India?- need to read more about urca to understand(EC).
-```{r}
-y_none_aic  = ur.df(working_hours_ts, type = "none", selectlags = "AIC")
-summary(y_none_aic)
-y_none_bic  = ur.df(working_hours_ts, type = "none", selectlags = "BIC")
-summary(y_none_bic)
-y_drift_aic = ur.df(working_hours_ts, type = "drift", selectlags = "AIC")
-summary(y_drift_aic)
-y_drift_bic = ur.df(working_hours_ts, type = "drift", selectlags = "BIC")
-summary(y_drift_bic)
-y_trend_aic = ur.df(working_hours_ts, type = "trend", selectlags = "AIC")
-summary(y_trend_aic)
-y_trend_bic = ur.df(working_hours_ts, type = "trend", selectlags = "BIC")
-summary(y_trend_bic)
-
-# Difference data and adf test - I'm uncertain about AIC/Bayes IC difference, 
-# just watching Youtube U video from https://www.youtube.com/watch?v=mkHtP0nONJY
-dy_none_aic  = ur.df(working_hours_diff, type = "none", selectlags = "AIC")
-summary(dy_none_aic)
-dy_none_bic  = ur.df(working_hours_diff, type = "none", selectlags = "BIC")
-summary(dy_none_bic)
-dy_drift_aic = ur.df(working_hours_diff, type = "drift", selectlags = "AIC")
-summary(dy_drift_aic)
-dy_drift_bic = ur.df(working_hours_diff, type = "drift", selectlags = "BIC")
-summary(dy_drift_bic)
-dy_trend_aic = ur.df(working_hours_diff, type = "trend", selectlags = "AIC")
-summary(dy_trend_aic)
-dy_trend_bic = ur.df(working_hours_diff, type = "trend", selectlags = "BIC")
-summary(dy_trend_bic)
-```
-
 
 # Exploratory forecasting method - Exponential Smoothing Model(class of t.s. forecasting models)  This does not fit well within technical requirements, but knowledge.
 ```{r, echo=FALSE}
@@ -550,15 +916,20 @@ HA: The residuals are not independently distributed; they exhibit serial correla
 
 Box.test(arima.sim(model = list(order = c(0, 0, 0)), n = 36), type="Ljung")
 
-
+# Stacking graphs/ MA(1) and arima- how to
 ```{r}
-# Seasonality check- Sub-Series Plot - we have a box plot that visually looks better for EDA
-ggsubseriesplot(working_hours_ts) +
-  ylab("Index of Aggregated Weekly Hours Worked") +
-  ggtitle("Seasonal Plot: Data Change for Aggregated & Indexed Monthly Working Hours")
+# y = arima(working_hours_diff, order = c(0,0,1))
+# summary(y)
+# 
+# par(mar = c(1,1,1,1))
+# 
+# layout(matrix(c(1,1,2,2,), 2,2, byrow = TRUE))
+# layout(matrix(c(1,1,2,2,), 2,2, byrow = TRUE))
+# plot.ts(df)
+# plot.ts(df)
 
-ggmonthplot(working_hours_ts, labels = NULL, times = time(working_hours_ts,
-            phase = cycle(working_hours_ts)
-            ))                                              
-                                            
 ```
+
+# Resources:
+## DF
+https://stats.stackexchange.com/questions/24072/interpreting-rs-ur-df-dickey-fuller-unit-root-test-results
