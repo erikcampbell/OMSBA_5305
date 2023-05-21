@@ -458,28 +458,7 @@ summary(model_ARMA202_diff) # RMSE = 1.273783
 plot(model_ARMA202_diff)
 coeftest(model_ARMA202_diff)
 
-# Check r-squared comparing model_ARMA202_diff and manually calculating r-squared & adj. r-squared.
-se <- sum((fitted(model_ARMA202_diff) - working_hours_diff)^2) # 330.9947 - this is in working_hours_difference units
-ssr <- sum((fitted(model_ARMA202_diff) - mean(working_hours_diff))^2) # 9.605149
-sst <- ssr + se # 340.5999
-n = length(working_hours_diff) # 204
-R2_model_ARMA202_diff <- (1 - (ssr/sst)) # R-squared = 0.9999955
-AR2_model_ARMA202_diff <- 1-((1-R2_model_ARMA202_diff)*(n-1)/(n-4-1)) # 0.9712325
-
-# R-Squared test methodology   # https://www.statology.org/sst-ssr-sse-in-r/
-# Adjusted R2 = 1 – [(1-R2)*(n-1)/(n-k-1)]
-# n = Number of points
-# K = # of variables excluding constant
-# Manually Calculating R2 and AR2 with formula
-sse <- sum((fitted(model_ARMA202) - working_hours_diff)^2) # 2141297 - Note using difference working hours
-ssr <- sum((fitted(model_ARMA202) - mean(working_hours_diff))^2) # 2150340
-sst <- ssr + sse # 4291637
-
-n = length(working_hours_diff) # 204
-R2_model_ARMA202 <- (1 - (ssr/sst)) # R-squared = 0.4989465
-AR2_model_ARMA202 <- 1-((1-R2_model_ARMA202)*(n-1)/(n-4-1))  # Adj.R-squared = 0.488875
-
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared 
 R2=cor(fitted(model_ARMA202),working_hours_ts)^2 # 0.9618898
 n = length(working_hours_ts)
 RA2 = RA2 = 1-(1-R2)*(n-1)/(n-4-1) # 0.9611276
@@ -533,20 +512,7 @@ summary(model_ar2) # 1.27648  # Note: T-Ratio = Coefficient/Std. Error
 plot(model_ar2)  
 coeftest(model_ar2)
 
-# R-Squared test methodology   # https://www.statology.org/sst-ssr-sse-in-r/
-# Adjusted R2 = 1 – [(1-R2)*(n-1)/(n-k-1)]
-# n = Number of points
-# K = # of variables excluding constant
-
-sse <- sum((fitted(model_ar2) - working_hours_diff)^2) # 2141658   / 334.0275- Note using difference working hours
-ssr <- sum((fitted(model_ar2) - mean(working_hours_diff))^2) # 2150699  / 8471.919 
-sst <- ssr + sse # 4292357   / 8805.946
-
-n = length(working_hours_diff) # 204 / 205
-R2_model_ar2 <- (1 - (ssr/sst)) # R-squared = 0.4989468    / 0.03793204
-AR2_model_ar2 <- 1-((1-R2_model_ar2 )*(n-1)/(n-2-1))  # Adj.R-squared = 0.4964664  /  0.02840661
-
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared
 R2=cor(fitted(model_ar2),working_hours_ts)^2 # 0.9617971
 n = length(working_hours_ts) # 205
 RA2 = RA2 = 1-(1-R2)*(n-1)/(n-2-1) # 0.9614188
@@ -599,15 +565,7 @@ summary(model_ma1) # 1.291698
 plot(model_ma1)
 coeftest(model_ma1)
 
-sse <- sum((fitted(model_ma1) - working_hours_diff)^2) # 2142246 - Note using difference working hours
-ssr <- sum((fitted(model_ma1) - mean(working_hours_diff))^2) # 2151271
-sst <- ssr + sse # 4293517
-
-n = length(working_hours_diff) # 204
-R2_model_ma1 <- (1 - (ssr/sst)) # R-squared = 0.498949
-AR2_model_ma1 <- 1-((1-R2_model_ma1)*(n-1)/(n-1-1))  # Adj.R-squared =0.4964686
-
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared
 n = length(working_hours_ts)
 ma1_R2 = cor(fitted(model_ma1), working_hours_ts)^2  # 0.960895
 ma1_AR2 = 1 - (1-ma1_R2)*(n-1)/(n-1-1) #  0.9607024
@@ -651,15 +609,7 @@ summary(model_ma2) # RMSE = 1.275489
 plot(model_ma2)
 coeftest(model_ma2)
 
-sse <- sum((fitted(model_ma2) - working_hours_diff)^2) # 2141435 - Note using difference working hours
-ssr <- sum((fitted(model_ma2) - mean(working_hours_diff))^2) # 2150477
-sst <- ssr + sse # 4291912
-
-n = length(working_hours_diff) # 204
-R2_model_ma2 <- (1 - (ssr/sst)) # 0.4989466
-AR2_model_ma2 <- 1-((1-R2_model_ma2)*(n-1)/(n-2-1))  # 0.493961
-
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared 
 n = length(working_hours_ts)
 ma2_R2 = cor(fitted(model_ma2), working_hours_ts)^2  # 0.9618626
 ma2_AR2 = 1 - (1-ma2_R2)*(n-1)/(n-2-1) #  0.961485
@@ -702,20 +652,7 @@ summary(model_arma112) # RMSE = 1.275173
 plot(model_arma112)
 coeftest(model_arma112)
 
-# R-Squared test methodology   # https://www.statology.org/sst-ssr-sse-in-r/
-# Adjusted R2 = 1 – [(1-R2)*(n-1)/(n-k-1)]
-# n = Number of points
-# K = # of variables excluding constant
-
-sse <- sum((fitted(model_arma112) - working_hours_diff)^2) # 2141317 - Note using difference working hours
-ssr <- sum((fitted(model_arma112) - mean(working_hours_diff))^2) # 2150359
-sst <- ssr + sse # 4291676
-
-n = length(working_hours_diff) # 204
-R2_model_arma112 <- (1 - (ssr/sst)) # 0.4989465
-AR2_model_arma112 <- 1-((1-R2_model_arma112)*(n-1)/(n-3-1))  # 0.4914307
-
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared
 n = length(working_hours_ts) # 205
 arma112_R2 = cor(fitted(model_arma112), working_hours_ts)^2  # 0.9618873
 arma112_AR2 = 1 - (1-arma112_R2)*(n-1)/(n-2-1) # 0.96151
@@ -757,15 +694,7 @@ summary(model_arma211) # RMSE = 1.275937
 coeftest(model_arma211)
 plot(model_arma211)
 
-sse <- sum((fitted(model_arma211) - working_hours_diff)^2) # 2141424 - Note using difference working hours
-ssr <- sum((fitted(model_arma211) - mean(working_hours_diff))^2) # 2150466
-sst <- ssr + sse # 4291890
-
-n = length(working_hours_diff)
-R2_model_arma211 <- (1 - (ssr/sst)) # 0.4989468
-AR2_model_arma211 <- 1-((1-R2_model_arma211)*(n-1)/(n-3-1))  #   0.4914682  
-
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared 
 n = length(working_hours_diff) # 205
 arma211_R2 = cor(fitted(model_arma211), working_hours_ts)^2  # 0.9618366
 arma211_AR2 = 1 - (1-arma211_R2)*(n-1)/(n-2-1) # 0.9614568
@@ -856,7 +785,7 @@ MSE6 <- mean(e6^2) # 0.6008866
 
 # Fixed Scheme
 fcast1_me<-numeric(21) #generate a vector of 21 zeros, using 183 as estimation sample and 21 as prediction sample.
-fixed_fcast_ar3 <- dynlm(working_hours_diff ~ stats::lag(working_hours_diff,-1) + stats::lag(working_hours_diff,-3),
+fixed_fcast_ar3 <- dynlm(working_hours_diff ~ stats::lag(working_hours_diff,-1) + stats::lag(working_hours_diff,-3), # AR 3 process
                     start = c(2006,4), end = c(2021,06))
 for (i in 1:21){ #start a for loop
   fixed_fcast_ar3[i]<-coef(fixed_fcast_ar3)[1]+coef(fixed_fcast_ar3)[2]*working_hours_diff[182+i]
