@@ -55,9 +55,7 @@ working_hours1 <- working_hours %>%
   mutate(year = year(observation_date),
          month = month(observation_date),
          first_difference_index = working_hours$hours_worked_index-lag(working_hours$hours_worked_index)
-         ) %>%
-  select(-year, -month)
-
+         )
 # Create a time series object
 working_hours_ts = ts(working_hours$hours_worked_index, 
                       frequency = 12,
@@ -120,21 +118,11 @@ plot_work_hours_diff_density <- working_hours_diff %>%
 
 plot_work_hours_diff_density
 
-# # Density Plot for Second Difference of Hours Worked Index
-plot_work_hours_sec_diff_density <- working_hours_diff %>%
-  ggdensity(color="darkblue", fill="lightblue",alpha=0.7) +
-  labs(x = "", y = "", 
-       title = "Second Difference Hours Worked Density", subtitle = "") +
-  xlim(-2.5,2.5)
-
-plot_work_hours_sec_diff_density
-
 # Combine all Three Density Plots
-ggarrange(plot_work_hours1_density, plot_work_hours_diff_density,
-          plot_work_hours_sec_diff_density, nrow =1) 
+ggarrange(plot_work_hours1_density, plot_work_hours_diff_density, nrow =1) 
 
 ```
-The density of index values plotted raw is not very symmetrical, stationarity is a visual concern and transformations (i.e. taking first difference of index values and second index) do have an effect on the data.
+The density of index values plotted raw is not very symmetrical, as a result there are are concerns about this data being stationary and if transformations (i.e. taking first difference of index values and second index) are warranted. Let's start with the basics and explore for trends.
 
 ## Histogram data
 ```{r, echo = FALSE, warning=FALSE}
@@ -155,17 +143,8 @@ hist_diff <- gghistogram(working_hours_diff, fill = "blue", color = 'black', alp
   geom_density(color = 'red' )
 hist_diff
 
-# Histogram - Basic for Second Difference of Hours Worked Index
-hist_sec_diff <- gghistogram(working_hours_sec_diff, fill = "blue", color = 'black', alpha = 0.50,
-                    title ='Second Difference: Mar 2006 - MAR 2023', 
-                    subtitle = 'Agg. Weekly Work Hours Index Indexed(2007=100)',
-                    xlab = 'Index Value: Base (2007 = 100)', ylab = 'Frequency')  +
-                    xlim(-5,5) +
-  geom_density(color = 'red' )
-hist_sec_diff
-
 # Combination of Histograms with Raw Data, First Difference & Second Difference
-hist_combo <- ggarrange(hist_base, hist_diff, hist_sec_diff, nrow = 3, label.y  = 0.3,
+hist_combo <- ggarrange(hist_base, hist_diff, nrow = 2, label.y  = 0.3,
                         font.label = list(size = 8, color = "black", face = "bold", family = NULL))
 plot(hist_combo)
 ```
@@ -277,14 +256,6 @@ first_diff_season <- ts_plot_season(working_hours_diff) +
   ggtitle("First Diffrence Data Seasonality/Cycles by Month All Years, Base 2007 = 100")
 first_diff_season
 
-# Second Difference of Hours Worked Index and Seasonality Check
-sec_diff_season <- ts_plot_season(working_hours_sec_diff) +
-  ggtitle("Second Difference Data Seasonality/Cycles by Month All Years, Base 2007 = 100")
-sec_diff_season
-  
-# Combine Raw Data, First Difference and Second Difference into One Plot
-ggarrange(raw_season, first_diff_season, sec_diff_season, nrow =3)
-
 # Combine Raw Data & First Difference
 ggarrange(raw_season, first_diff_season, nrow =2)
 ```
@@ -307,22 +278,10 @@ season_first_diff <- ggseasonplot(working_hours_diff) +
   theme_classic2()
 season_first_diff
 
-# Second Difference of Hours Worked Index and Seasonality Check
-season_sec_diff <- ggseasonplot(working_hours_sec_diff) +
-  ylab("Index Hours") +
-  ggtitle("2nd Difference: Seasonal Plot All Years") +
-  theme_classic2()
-season_sec_diff
-
 # Combined Plot of Raw vs. First Differenced Hours Worked Index
 combo_raw_diff_scatter <- ggarrange(season_raw, season_first_diff, nrow = 2, common.legend = TRUE, 
           legend = 'right', label.x = '')
 combo_raw_diff_scatter
-
-# Combined Plot of Raw vs. First Differenced Hours Worked Index
-combo_diff_sec_diff_scatter <- ggarrange(season_raw, season_sec_diff,
-          nrow = 2, common.legend = TRUE, legend = 'right', label.x = '')
-combo_diff_sec_diff_scatter
 ```
 
 There are 17 periods for each month with April being lowest aggregated and indexed to 2007 with a value 99.9, and December was highest aggregated and indexed value of 102.9 hours against base 2007. Seasonality plot for all years and months demonstrates the Great Recession and Covid period as illuminated in purple line not like any other of the other lines plotting index of hours worked over all twelve months from 2006-2023.
@@ -337,9 +296,6 @@ plot(decomp_work_hours_ts$seasonal, main = "Seasonal Data",
      ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100")
 plot(decomp_work_hours_ts$random, main ="Error Term Over Time", 
      ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100" )
-plot(decomp_work_hours_ts$figure, main = " Effects & Change for the 12 Months",
-     ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100",
-     xlab = "Month")
 
 # First Differenced Hours Worked Index decomposition
 decomp_work_hours_diff <- decompose(working_hours_diff, "additive") # Yt = Tt + St + Rt
@@ -350,12 +306,9 @@ plot(decomp_work_hours_diff$seasonal, main = "Differenced Data Seasonal Data",
      ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100")
 plot(decomp_work_hours_diff$random, main ="Differenced Data Error Term Over Time", 
      ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100" )
-plot(decomp_work_hours_diff$figure, main = "Differenced Data Effects & Change for the 12 Months",
-     ylab = "Changes in Agg Monthly Hours Worked- Indexed to 2007 = 100",
-     xlab = "Month")
 ```
 
-The width and height of seasonal cycles over time is predictable and trend is fairly linear with the first difference of hours worked, or seasonal variation is relatively constant over time. Thus, decomposition additively (Yt = Tt + St + Rt) seems appropriate. Now that we have a solid EDA undestanding of the data, let's check correlograms.
+The width and height of seasonal cycles over time is predictable and trend is fairly linear with the first difference of hours worked, or seasonal variation is relatively constant over time. Thus, decomposition additively (Yt = Tt + St + Rt) seems appropriate. Now that we have a solid EDA understanding of the data, let's check correlograms.
 
 # Correlograms, lag = 36 - I don't want to use this as there no reason to replot the raw data and print ACF/PACF with 36 lags? 
 
@@ -505,28 +458,7 @@ summary(model_ARMA202_diff) # RMSE = 1.273783
 plot(model_ARMA202_diff)
 coeftest(model_ARMA202_diff)
 
-# Check r-squared comparing model_ARMA202_diff and manually calculating r-squared & adj. r-squared.
-se <- sum((fitted(model_ARMA202_diff) - working_hours_diff)^2) # 330.9947 - this is in working_hours_difference units
-ssr <- sum((fitted(model_ARMA202_diff) - mean(working_hours_diff))^2) # 9.605149
-sst <- ssr + se # 340.5999
-n = length(working_hours_diff) # 204
-R2_model_ARMA202_diff <- (1 - (ssr/sst)) # R-squared = 0.9999955
-AR2_model_ARMA202_diff <- 1-((1-R2_model_ARMA202_diff)*(n-1)/(n-4-1)) # 0.9712325
-
-# R-Squared test methodology   # https://www.statology.org/sst-ssr-sse-in-r/
-# Adjusted R2 = 1 – [(1-R2)*(n-1)/(n-k-1)]
-# n = Number of points
-# K = # of variables excluding constant
-# Manually Calculating R2 and AR2 with formula
-sse <- sum((fitted(model_ARMA202) - working_hours_diff)^2) # 2141297 - Note using difference working hours
-ssr <- sum((fitted(model_ARMA202) - mean(working_hours_diff))^2) # 2150340
-sst <- ssr + sse # 4291637
-
-n = length(working_hours_diff) # 204
-R2_model_ARMA202 <- (1 - (ssr/sst)) # R-squared = 0.4989465
-AR2_model_ARMA202 <- 1-((1-R2_model_ARMA202)*(n-1)/(n-4-1))  # Adj.R-squared = 0.488875
-
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared 
 R2=cor(fitted(model_ARMA202),working_hours_ts)^2 # 0.9618898
 n = length(working_hours_ts)
 RA2 = RA2 = 1-(1-R2)*(n-1)/(n-4-1) # 0.9611276
@@ -573,27 +505,14 @@ So we have a reasonably good fit here with a ARMA(2,2) model the AIC is 689.72 w
 
 The Ljung-Box statistic is used to see if all underlying population autocorrelations for the error may be zero. Our t-stat was 0.0015358 and p-value of 0.9968 given 5 lags, which is well above 0.05 -a significant threshold for non-zero autocorrelations that rejects null that residuals are independently distributed.
 
-# Fit model ARMA(2,1,0)
+# Fit model ARMA(2,1,0) This Model is TOP 3 - Focus efforts here.
 ```{r, echo = FALSE}
 model_ar2 <- arima(working_hours_ts, order = c(2,1,0))
 summary(model_ar2) # 1.27648  # Note: T-Ratio = Coefficient/Std. Error
 plot(model_ar2)  
 coeftest(model_ar2)
 
-# R-Squared test methodology   # https://www.statology.org/sst-ssr-sse-in-r/
-# Adjusted R2 = 1 – [(1-R2)*(n-1)/(n-k-1)]
-# n = Number of points
-# K = # of variables excluding constant
-
-sse <- sum((fitted(model_ar2) - working_hours_diff)^2) # 2141658   / 334.0275- Note using difference working hours
-ssr <- sum((fitted(model_ar2) - mean(working_hours_diff))^2) # 2150699  / 8471.919 
-sst <- ssr + sse # 4292357   / 8805.946
-
-n = length(working_hours_diff) # 204 / 205
-R2_model_ar2 <- (1 - (ssr/sst)) # R-squared = 0.4989468    / 0.03793204
-AR2_model_ar2 <- 1-((1-R2_model_ar2 )*(n-1)/(n-2-1))  # Adj.R-squared = 0.4964664  /  0.02840661
-
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared
 R2=cor(fitted(model_ar2),working_hours_ts)^2 # 0.9617971
 n = length(working_hours_ts) # 205
 RA2 = RA2 = 1-(1-R2)*(n-1)/(n-2-1) # 0.9614188
@@ -646,15 +565,7 @@ summary(model_ma1) # 1.291698
 plot(model_ma1)
 coeftest(model_ma1)
 
-sse <- sum((fitted(model_ma1) - working_hours_diff)^2) # 2142246 - Note using difference working hours
-ssr <- sum((fitted(model_ma1) - mean(working_hours_diff))^2) # 2151271
-sst <- ssr + sse # 4293517
-
-n = length(working_hours_diff) # 204
-R2_model_ma1 <- (1 - (ssr/sst)) # R-squared = 0.498949
-AR2_model_ma1 <- 1-((1-R2_model_ma1)*(n-1)/(n-1-1))  # Adj.R-squared =0.4964686
-
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared
 n = length(working_hours_ts)
 ma1_R2 = cor(fitted(model_ma1), working_hours_ts)^2  # 0.960895
 ma1_AR2 = 1 - (1-ma1_R2)*(n-1)/(n-1-1) #  0.9607024
@@ -691,22 +602,14 @@ summary(fcast_ma1)
 
 The AIC is 688.3503 and adjusted r-squared is 0.9607024 and RMSE is 1.291698. The AIC was higher than both ARMA 2,1,2 and ARMA 2,1,0 and adjusted r-squared was lower. The p-value of Ljung was 0.072587 with 2 lags, not much above 0.05- a threshold for non-zero autocorrelations that rejects null that residuals are independently distributed. 
  
-# Fit Model MA(2) ARMA(0,1,2)
+# Fit Model MA(2) ARMA(0,1,2) This Model is TOP 3 - Focus efforts here.
 ```{r, echo=FALSE}
 model_ma2 <- arima(working_hours_ts, order = c(0,1,2))
 summary(model_ma2) # RMSE = 1.275489
 plot(model_ma2)
 coeftest(model_ma2)
 
-sse <- sum((fitted(model_ma2) - working_hours_diff)^2) # 2141435 - Note using difference working hours
-ssr <- sum((fitted(model_ma2) - mean(working_hours_diff))^2) # 2150477
-sst <- ssr + sse # 4291912
-
-n = length(working_hours_diff) # 204
-R2_model_ma2 <- (1 - (ssr/sst)) # 0.4989466
-AR2_model_ma2 <- 1-((1-R2_model_ma2)*(n-1)/(n-2-1))  # 0.493961
-
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared 
 n = length(working_hours_ts)
 ma2_R2 = cor(fitted(model_ma2), working_hours_ts)^2  # 0.9618626
 ma2_AR2 = 1 - (1-ma2_R2)*(n-1)/(n-2-1) #  0.961485
@@ -749,20 +652,7 @@ summary(model_arma112) # RMSE = 1.275173
 plot(model_arma112)
 coeftest(model_arma112)
 
-# R-Squared test methodology   # https://www.statology.org/sst-ssr-sse-in-r/
-# Adjusted R2 = 1 – [(1-R2)*(n-1)/(n-k-1)]
-# n = Number of points
-# K = # of variables excluding constant
-
-sse <- sum((fitted(model_arma112) - working_hours_diff)^2) # 2141317 - Note using difference working hours
-ssr <- sum((fitted(model_arma112) - mean(working_hours_diff))^2) # 2150359
-sst <- ssr + sse # 4291676
-
-n = length(working_hours_diff) # 204
-R2_model_arma112 <- (1 - (ssr/sst)) # 0.4989465
-AR2_model_arma112 <- 1-((1-R2_model_arma112)*(n-1)/(n-3-1))  # 0.4914307
-
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared
 n = length(working_hours_ts) # 205
 arma112_R2 = cor(fitted(model_arma112), working_hours_ts)^2  # 0.9618873
 arma112_AR2 = 1 - (1-arma112_R2)*(n-1)/(n-2-1) # 0.96151
@@ -804,15 +694,7 @@ summary(model_arma211) # RMSE = 1.275937
 coeftest(model_arma211)
 plot(model_arma211)
 
-sse <- sum((fitted(model_arma211) - working_hours_diff)^2) # 2141424 - Note using difference working hours
-ssr <- sum((fitted(model_arma211) - mean(working_hours_diff))^2) # 2150466
-sst <- ssr + sse # 4291890
-
-n = length(working_hours_diff)
-R2_model_arma211 <- (1 - (ssr/sst)) # 0.4989468
-AR2_model_arma211 <- 1-((1-R2_model_arma211)*(n-1)/(n-3-1))  #   0.4914682  
-
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared 
 n = length(working_hours_diff) # 205
 arma211_R2 = cor(fitted(model_arma211), working_hours_ts)^2  # 0.9618366
 arma211_AR2 = 1 - (1-arma211_R2)*(n-1)/(n-2-1) # 0.9614568
@@ -903,7 +785,7 @@ MSE6 <- mean(e6^2) # 0.6008866
 
 # Fixed Scheme
 fcast1_me<-numeric(21) #generate a vector of 21 zeros, using 183 as estimation sample and 21 as prediction sample.
-fixed_fcast_ar3 <- dynlm(working_hours_diff ~ stats::lag(working_hours_diff,-1) + stats::lag(working_hours_diff,-3),
+fixed_fcast_ar3 <- dynlm(working_hours_diff ~ stats::lag(working_hours_diff,-1) + stats::lag(working_hours_diff,-3), # AR 3 process
                     start = c(2006,4), end = c(2021,06))
 for (i in 1:21){ #start a for loop
   fixed_fcast_ar3[i]<-coef(fixed_fcast_ar3)[1]+coef(fixed_fcast_ar3)[2]*working_hours_diff[182+i]
