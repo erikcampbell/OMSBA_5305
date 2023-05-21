@@ -13,9 +13,7 @@ editor_options:
 ---
 
 QUESTIONS:
-Test our models on last 6 observations in data set as part of our forecast and evaluting fit, then provide a forecast?  We didn't do that to see realized values as part of forecast.
-
-
+Test our models on last 6 observations in data set as part of our forecast and evaluating fit, then provide a forecast?  We didn't do that to see realized values as part of forecast.
 
 
 ```{r setup, include=FALSE}
@@ -1000,4 +998,3 @@ ggPacf(working_hours_diff, main ="Partial Autocorrelation Function (PACF)", xlab
 fit_arima <- auto.arima(working_hours_ts, d = 1, D=1, 
                         stepwise = FALSE, approximation = FALSE, trace = TRUE)
 ```
-
