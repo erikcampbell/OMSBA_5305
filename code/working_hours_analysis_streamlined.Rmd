@@ -36,6 +36,7 @@ library(lubridate)
 # Data Load 
 ```{r, echo=FALSE, warning=FALSE}
 # Read in Data
+prices <- read_excel("../data/HousePrices_CA.xls") 
 working_hours = read_excel("../data/ch10_Weekly_Hours.xls") %>%
   mutate(year = year(observation_date),
          month = month(observation_date))
@@ -52,6 +53,9 @@ working_hours1 <- working_hours %>%
 working_hours_ts = ts(working_hours$hours_worked_index, 
                       frequency = 12,
                       start = c(2006, 3))
+
+# create First Difference of Hours Worked Index
+working_hours_diff = diff(working_hours_ts)
 ```
 
 # EDA
@@ -224,7 +228,7 @@ summary(df_diff_data_5)
 ```
 Dickey-Fuller suggests that we have stationary data now, as the p-value is below 0.01 and we can reject the null hypothesis that this data is not stationary. 
 
-# Model Fitting and Analysis
+# Model Fitting and Analysis (2,1,2)
 ```{r}
 # Fit an ARMA model with order of 2 for both terms with the first difference.
 model_ARMA212 = arima(working_hours_ts, order = c(2, 1, 2))
@@ -298,6 +302,7 @@ So we have a reasonably good fit here with a ARMA(2,2) model the AIC is 689.72 w
 
 The Ljung-Box statistic is used to see if all underlying population autocorrelations for the error may be zero. Our t-stat was 0.0015358 and p-value of 0.9968 given 5 lags, which is well above 0.05 -a significant threshold for non-zero autocorrelations that rejects null that residuals are independently distributed.
 
+# AR(2)
 ```{r}
 # Fit an AR model with order of 2 for both terms with the first difference.
 model_AR210 = arima(working_hours_ts, order = c(2, 1, 0))
@@ -367,6 +372,7 @@ summary(fcast_AR21)
 ```
 The AIC is 685.56, both phi parameters are < 1, our adjusted r-squared is 0.9614188 and RMSE is 1.2769. Our Q-test using Ljung was 0.24938500 and p-value looked good at 0.9692 with three lags. The AIC was lower than ARMA 2,1,2 and adjusted r-squared was marginally better.  
 
+# MA(2)
 ```{r}
 # Fit an MA model with order of 2 for both terms with the first difference.
 model_MA012 = arima(working_hours_ts, order = c(0, 1, 2))
@@ -469,4 +475,60 @@ fcast4 <-forecast(model_arma012_estimate, h= 1)  # Point Forecast     Lo 80    H
                                                   # 0.05086249     -1.694539 1.796264 -2.618499 2.720224 
 e4 <- ps_work - fcast4$mean # 0.6491375
 MSE4 <- mean(e4^2) # 0.4213795
+```
+
+
+```{r}
+###########################################################################################################################
+
+# Fixed Scheme - Professor
+fcast1<-numeric(21) #generate a vector of 21 zeros as we have 132 total observations, using 112 as estimation sample 21= prediction sample.
+model<-dynlm(working_hours_ts ~ stats::lag(working_hours_ts,-1)+ stats::lag(working_hours_ts,-2), start=c(2006,4), end=c(2021,6)) #fit AR(3), last 20 in t.s. stops
+for (i in 1:21){ #start a for loop
+  fcast1[i]<-coef(model)[1]+coef(model)[2]*working_hours_ts[182+i]+coef(model)[3]*working_hours_ts[181+i] #fill in forecasted values at the end of each iteration
+} 
+
+# Coefficients:
+#                      (Intercept)  stats::lag(working_hours_ts, -1)  stats::lag(working_hours_ts, -2)  
+#                          2.47647                           0.96502                           0.01104  
+
+
+g0<-window(working_hours_ts, start=c(2021,7))
+f1<-ts(fcast1, frequency = 12, start=c(2021,7))
+
+
+# FORECAST MA2
+fcast2<-numeric(21) #generate a vector of 21 zeros as we have 132 total observations, using 112 as estimation sample 21= pred.
+model2 <-dynlm(working_hours_ts ~ stats::lag(working_hours_ts,1)+ stats::lag(working_hours_ts,2), start=c(2006,4), end=c(2021,6)) #fit AR(3), last 20 in t.s. stops
+for (i in 1:21){ #start a for loop
+  fcast1[i]<-coef(model)[1]+coef(model)[2]*working_hours_ts[182+i]+coef(model)[3]*working_hours_ts[181+i] # forecasted values at the end of each iteration
+} 
+
+# 
+# Coefficients:
+#                     (Intercept)  stats::lag(working_hours_ts, 1)  stats::lag(working_hours_ts, 2)  
+                        # 3.05034                          0.95877                          0.01055  
+
+
+g1<-window(working_hours_ts, start=c(2021,7))
+f2<-ts(fcast1, frequency = 12, start=c(2021,7))
+
+
+# FORECAST ARMA(2,2)
+fcast2<-numeric(21) #generate a vector of 21 zeros as we have 132 total observations, using 112 as estimation sample 21= pred.
+model2 <-dynlm(working_hours_ts ~ stats::lag(working_hours_ts,1)+ stats::lag(working_hours_ts,2), start=c(2006,4), end=c(2021,6)) #fit AR(3), last 20 in t.s. stops
+for (i in 1:21){ #start a for loop
+  fcast1[i]<-coef(model)[1]+coef(model)[2]*working_hours_ts[182+i]+coef(model)[3]*working_hours_ts[181+i] # forecast values at the end of each iteration
+} 
+
+arma_model <- dynlm(working_hours_ts ~ L(working_hours_ts, 1) + L(working_hours_ts, 2) + L(residuals(model), 1) + L(residuals(model), 2))   # we'll have to look into.
+
+
+# 
+# Coefficients:
+#            (Intercept)  L(working_hours_ts, 1)  L(working_hours_ts, 2)  L(residuals(model), 1)  L(residuals(model), 2)  
+#                -0.4676                  1.7679                 -0.7632                 -0.8300                 -0.1525  
+
+
+
 ```
