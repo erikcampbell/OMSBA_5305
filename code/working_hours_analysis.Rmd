@@ -36,6 +36,7 @@ library(datplot)
 library(kableExtra)
 library(ggannotate) # this needs work
 library(lmtest)
+library(lubridate)
 ```
 
 https://fred.stlouisfed.org/series/AWHAE
@@ -46,13 +47,18 @@ Our data is FRED creating an index (2007=100) of aggregate weekly hours reported
 # Read in Data
 working_hours = read_excel("../data/ch10_Weekly_Hours.xls")
 
+# Added as working_hours1 removed the year and month necessary for some functions to run.
+working_hours <- working_hours %>%
+  mutate(year = year(observation_date),
+         month = month(observation_date))
+
 # Create covid and recession indicators associated with time.
 working_hours1 <- working_hours %>%
   mutate(year = year(observation_date),
          month = month(observation_date),
          first_difference_index = working_hours$hours_worked_index-lag(working_hours$hours_worked_index)
          ) %>%
-  select(-year,-month)
+  select(-year, -month)
 
 # Create a time series object
 working_hours_ts = ts(working_hours$hours_worked_index, 
@@ -170,7 +176,7 @@ The histogram depicts similar story as density plots above.
 
 ## Summary Stats Grouped Year - numerical
 ```{r, echo=FALSE, warning=FALSE}
-sum_stats_year <- working_hours1 %>%
+sum_stats_year <- working_hours %>%
   group_by(year) %>%
   summarize(count = n(),mean = round(mean(hours_worked_index), 2), median = median(hours_worked_index),
             mode(hours_worked_index), sd = round(sd(hours_worked_index), 2)
@@ -182,7 +188,7 @@ kable(sum_stats_year,digits = 2, caption = "Summary Stats Grouped Year")
 
 ## Summary Stats Grouped Year - plot
 ```{r, echo = FALSE, warning= FALSE}
-stats_year_base <- working_hours1 %>%
+stats_year_base <- working_hours %>%
   select(year, hours_worked_index) %>%
   group_by(year) %>%
   summarise(year, avg = mean(hours_worked_index), median = median(hours_worked_index),
@@ -208,7 +214,7 @@ This chart demonstrates the variance of hours worked in any given year.  More vi
 
 ## Summary Stats Grouped Month - numerical
 ```{r, echo=FALSE, warning=FALSE}
-sum_stats_month <- working_hours1 %>%
+sum_stats_month <- working_hours %>%
   mutate(month = (month.abb[month])) %>%
   group_by(month) %>%
   summarize(count = n(), mean = round(mean(hours_worked_index), 2), median = median(hours_worked_index), mode(hours_worked_index), sd = round(sd(hours_worked_index), 2)
@@ -221,7 +227,7 @@ kable(sum_stats_month,digits = 2, caption = "Summary Stats Grouped Month")
 
 ## Summary Stats Grouped Month - Plot
 ```{r, echo=FALSE, warning= FALSE}
-stats_month_base <- working_hours1 %>%
+stats_month_base <- working_hours %>%
   select(year, month, hours_worked_index) %>%
   mutate(month_name = as.factor(month.abb[month])) %>%
   group_by(month_name) %>%
@@ -353,10 +359,12 @@ plot(decomp_work_hours_diff$figure, main = "Differenced Data Effects & Change fo
 
 The width and height of seasonal cycles over time is predictable and trend is fairly linear with the first difference of hours worked, or seasonal variation is relatively constant over time. Thus, decomposition additively (Yt = Tt + St + Rt) seems appropriate. Now that we have a solid EDA undestanding of the data, let's check correlograms.
 
-# Correlograms, lag = 36 - I don't want to use this as there no reason to replot the raw data and print ACF/PACF with 36 lags?
+# Correlograms, lag = 36 - I don't want to use this as there no reason to replot the raw data and print ACF/PACF with 36 lags? 
+
+#CDH- This was the original correlogram plot. Not a replot. Hence the just default 36 lags. Also you can just add lag as a parameter for whatever value you want. And it was done prior to the seasonality / stationary check before. We can remove all these that are prior the first diff change.
 ```{r, echo=FALSE}
 # Plot the autocorrelation and partial autocorrelation functions
-ggtsdisplay(working_hours_ts) # lag = 36
+ggtsdisplay(working_hours_ts, lag=12) # lag = 36
 
 ```
 Once again, our data is FRED creating an index (2007=100) of aggregate weekly hours reported on a monthly basis.  The indexes of aggregate weekly hours are calculated by dividing the current month's aggregate hours by the average of the 12 monthly figures, for the base year (2007). 
@@ -485,7 +493,7 @@ summary(df_diff_data_2)
 
 Dickey-Fuller suggests that we have stationary data now, as the p-value of 0.01 is below 0.05 and we can reject the null hypothesis that this data is not stationary. 
 
-# Fit model ARMA(2,0,2) https://stats.stackexchange.com/questions/32634/difference-time-series-before-arima-or-within-arima
+# Fit model ARMA(2,1,2) https://stats.stackexchange.com/questions/32634/difference-time-series-before-arima-or-within-arima
 ```{r, echo=FALSE}
 # Fit an ARMA model with order of 2 for both terms.
 model_ARMA202 = arima(working_hours_ts, order = c(2, 1, 2))
@@ -915,27 +923,26 @@ for (i in 1:21){ #start a for loop
                         +coef(fixed_fcast_ar2)[3]*working_hours_diff[179+i]    
 }  
 
-
-
-
-
 aic_fixed_ar3 <- AIC(fixed_fcast_ar3) # 630.799
 bic_fixed_ar3 <- BIC(fixed_fcast_ar3) # 643.5709
-checkresiduals(fixed_fcast_ar3)
 
-model<-dynlm(g ~ stats::lag(g,-1)+ stats::lag(g,-3), start=c(1975,1), end=c(2002,4)) #fit AR(3), last 20 in t.s. stops
-for (i in 1:20){ #start a for loop
-  fcast1[i]<-coef(model)[1]+coef(model)[2]*g[111+i]+coef(model)[3]*g[109+i] #fill in forecasted values at the end of each iteration
-} #end the loop. We have created a numeric vector of last 20 observations (empty). we use 112 observations
+# TODO: FIX 
+#checkresiduals(fixed_fcast_ar3)
+
+# TODO: Fix All of this. G is instantiated out of order and prices is not defined prior to g.
+# model<-dynlm(g ~ stats::lag(g,-1)+ stats::lag(g,-3), start=c(1975,1), end=c(2002,4)) #fit AR(3), last 20 in t.s. stops
+# for (i in 1:20){ #start a for loop
+#  fcast1[i]<-coef(model)[1]+coef(model)[2]*g[111+i]+coef(model)[3]*g[109+i] #fill in forecasted values at the end of each iteration }
+#end the loop. We have created a numeric vector of last 20 observations (empty). we use 112 observations
 # in estimation sample to predict last 20 observations in our ts. 
 
 # Turning Prices into time series
-g <- ts(prices, frequency = 4, start=c(1975,1))
+# g <- ts(prices, frequency = 4, start=c(1975,1))
 
-es_prices <- window(prices_ts,start=c(1975,1),end=c(2002,4)) 
-ps_prices <- window(prices_ts,start=c(2002,5),end=c(2007,4))
+# es_prices <- window(prices_ts,start=c(1975,1),end=c(2002,4)) 
+# ps_prices <- window(prices_ts,start=c(2002,5),end=c(2007,4))
 
-model_ar2 <- arima(es_prices, order= c(3,0,0))
+# model_ar2 <- arima(es_prices, order= c(3,0,0))
 
 
 
