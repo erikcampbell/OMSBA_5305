@@ -497,6 +497,26 @@ g0<-window(working_hours_ts, start=c(2021,7))
 f1<-ts(fcast1, frequency = 12, start=c(2021,7))
 
 
+fcast1<-numeric(21) #generate a vector of 20 zeros
+ferror1<-numeric(21) #generate a vector of 20 zeros
+loss1<-numeric(21) #generate a vector of 20 zeros
+
+for (i in 1:21){ 
+  fcast1[i]<-working_hours_ts[183+i]
+  ferror1[i]<-working_hours_ts[183+i]- fcast2[i] #fill in forecasted values at the end of each iteration
+  loss1[i] <-ferror1[i]^2
+ } 
+cbind(fcast2, ferror1, loss1)
+MSE2 <- mean(loss1)
+
+mpetest <- lm(ferror1 ~ 1)
+summary(mpetest)
+
+
+IETest <- lm(ferror1 ~ fcast2)
+summary(IETest)
+
+
 # FORECAST MA2
 fcast2<-numeric(21) #generate a vector of 21 zeros as we have 132 total observations, using 112 as estimation sample 21= pred.
 model2 <-dynlm(working_hours_ts ~ stats::lag(working_hours_ts,1)+ stats::lag(working_hours_ts,2), start=c(2006,4), end=c(2021,6)) #fit AR(3), last 20 in t.s. stops
@@ -510,8 +530,29 @@ for (i in 1:21){ #start a for loop
                         # 3.05034                          0.95877                          0.01055  
 
 
-g1<-window(working_hours_ts, start=c(2021,7))
-f2<-ts(fcast1, frequency = 12, start=c(2021,7))
+g0<-window(working_hours_ts, start=c(2021,7))
+f2<-ts(fcast2, frequency = 12, start=c(2021,7))
+
+
+fcast2<-numeric(21) #generate a vector of 20 zeros
+ferror2<-numeric(21) #generate a vector of 20 zeros
+loss2<-numeric(21) #generate a vector of 20 zeros
+
+for (i in 1:21){ 
+  fcast2[i]<-working_hours_ts[183+i]
+  ferror2[i]<-working_hours_ts[183+i]- fcast2[i] #fill in forecasted values at the end of each iteration
+  loss2[i] <-ferror2[i]^2
+ } 
+cbind(fcast2, ferror2, loss2)
+MSE2 <- mean(loss2)
+
+mpetest <- lm(ferror2 ~ 1)
+summary(mpetest)
+
+
+IETest <- lm(ferror2 ~ fcast2)
+summary(IETest)
+
 
 
 # FORECAST ARMA(2,2)
@@ -530,5 +571,42 @@ arma_model <- dynlm(working_hours_ts ~ L(working_hours_ts, 1) + L(working_hours_
 #                -0.4676                  1.7679                 -0.7632                 -0.8300                 -0.1525  
 
 
+
+fcast3<-numeric(21) #generate a vector of 20 zeros
+ferror3<-numeric(21) #generate a vector of 20 zeros
+loss3<-numeric(21) #generate a vector of 20 zeros
+
+for (i in 1:21){ 
+  fcast3[i]<-working_hours_ts[183+i]
+  ferror3[i]<-working_hours_ts[183+i]- fcast2[i] #fill in forecasted values at the end of each iteration
+  loss3[i] <-ferror1[i]^2
+ } 
+cbind(fcast3, ferror3, loss3)
+MSE3 <- mean(loss3)
+
+mpetest <- lm(ferror3 ~ 1)
+summary(mpetest)
+
+
+IETest <- lm(ferror3 ~ fcast3)
+summary(IETest)
+
+
+# Table 9.8  P246
+# Optimal Linear Combinations
+
+
+comb<-lm(g0~(fcast1)+(fcast2)+(fcast3))  # Work on weights w/ MSE's above.
+summary(comb)
+
+fcast4<-numeric(21) #generate a vector of 20 zeros
+ferror4<-numeric(21) #generate a vector of 20 zeros
+loss4<-numeric(21) #generate a vector of 20 zeros
+
+fcast4 <- comb$fitted.values
+ferror4 <- g0-fcast4
+loss4 <-ferror4^2
+
+MSE4 <- mean(loss4)
 
 ```
