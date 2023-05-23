@@ -33,6 +33,9 @@ library(lmtest)
 library(lubridate)
 ```
 
+https://fred.stlouisfed.org/series/AWHAE
+Our data is FRED creating an index (2007=100) of aggregate weekly hours reported on a monthly basis. The indexes of aggregate weekly hours are calculated by dividing the current month's aggregate hours by the average of the 12 monthly figures, for the base year (2007).
+
 # Data Load 
 ```{r, echo=FALSE, warning=FALSE}
 # Read in Data
@@ -59,6 +62,7 @@ working_hours_diff = diff(working_hours_ts)
 ```
 
 # EDA
+## Plot Raw Data
 ```{r, echo = FALSE}
 plot_work_hours <- ggplot(working_hours1, aes(x = observation_date, 
                                              y = hours_worked_index)) +
@@ -108,7 +112,34 @@ stats_year_base <- working_hours %>%
 
 stats_year_base
 ```
-This chart looks at the variance in index of hours worked by month from 2006-2023 and can shed some insight about cycles in working hours.
+This chart looks at the variance in index of hours worked by year from 2006-2023 and can shed some insight about cycles in working hours.
+
+## Summary Stats Grouped Month - Plot
+```{r, echo=FALSE, warning= FALSE}
+stats_month_base <- working_hours %>%
+  select(year, month, hours_worked_index) %>%
+  mutate(month_name = as.factor(month.abb[month])) %>%
+  group_by(month_name) %>%
+  summarize(month_name, avg = mean(hours_worked_index), median = median(hours_worked_index),
+            stand_dev = sd(hours_worked_index)  
+            ) %>%
+  ggplot(aes(x = reorder(month_name, avg), y = avg)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = avg - stand_dev, ymax = avg + stand_dev)) +
+  coord_flip() +
+  labs(title = 'MAR 2006 - Mar 2023 Variance by Month  Base 2007 = 100', subtitle = 'Min, Mean, Max', 
+       y = "", x = '') +
+  theme(axis.text.y=element_text(face="bold", color="black", size=10, angle=0),
+      axis.ticks.y=element_blank(),
+      axis.title = element_text(face = "bold", color="black", size=10),
+      axis.text.x = element_text(face = "bold", color="black", size=10),
+      panel.background =element_rect('White'),
+      legend.position = "none")
+
+stats_month_base
+```
+
+Variance in index of hours worked by month from 2006-2023 and can shed some insight about cycles in working hours.
 
 ## Boxplot by Month to Evaluate Seasonality
 ```{r, echo=FALSE, warning=FALSE}
@@ -133,18 +164,27 @@ raw_season <- ts_plot_season(working_hours_ts) +
 raw_season  
 
 ```
-This boxplot is another method to look at potential seasonality by month from 2006-2023. The Q1 and Q4 are slightly higher than Q2 and Q3 as present in the box plot which is indicative of a cycle. First let's address the Trend and maybe the seaonsality with taking the first difference.
+This boxplot is another method to look at potential seasonality by month from 2006-2023. The Q1 and Q4 are slightly higher than Q2 and Q3 as present in the box plot which is indicative of a cycle. First let's address the Trend and maybe the seaonsality with taking the first difference. It is clearly evident that taking the first-difference of hours worked index is warranted.
 
 ## Add in First Difference
 ```{r}
 # create First Difference of Hours Worked Index
 working_hours_diff = diff(working_hours_ts)
 
-plot(working_hours_diff, main = "Working Hours Diff")
-```
-We can see that using the first difference removes the trend with the COVID outlier remaining. 
+## Comparison of First Difference vs. Raw Data
+par(mfrow = c(2,1), mex = 0.6, cex = 0.8)
+plot(ts(working_hours$hours_worked_index), main = 'Index of avg Hours Worked , Base = 2007 at 100', xlab = 'Date', 
+     ylab = 'Index Value ',
+     col = 'red')
 
-## Histogram data (Note: I removed the second diff as we did not model on it and it's not needed for this analysis)
+plot(working_hours_diff, main = 'First Differenced Data', xlab = 'Date', # call "growth rate" or c
+     ylab = 'First Difference Index Value')
+     lines(working_hours_diff, col = 'blue')
+```
+
+We can see that using the first difference removes the trend with the COVID outlier remaining. Let's look at a histogram of raw data vs. first difference data. 
+
+## Histogram data
 ```{r, echo = FALSE, warning=FALSE}
 # Histogram - Basic 
 hist_base <- gghistogram(working_hours_ts, fill = "blue", color = 'black', alpha = 0.50,
@@ -168,7 +208,18 @@ plot(hist_combo)
 ```
 Here we can see the distribution differences between the raw data and the first difference data. The first difference data has a normal distribution indicating that the data is stationary and that we can model on it using the regression assumption necessary to draw inferences.
 
-## Scatter plot by Year to Evaluate Seasonality
+## Boxplot of Raw vs. First Difference Data
+```{r,echo=FALSE}
+# First Difference of Hours Worked Index and Seasonality Check
+first_diff_season <- ts_plot_season(working_hours_diff) +
+  ggtitle("First Diffrence Data Seasonality/Cycles by Month All Years, Base 2007 = 100")
+first_diff_season
+
+# Combine Raw Data & First Difference
+ggarrange(raw_season, first_diff_season, nrow =2)
+```
+
+## Scatter plot by Year to Evaluate Seasonality (Raw data vs. First Difference)
 ```{r, echo=FALSE}
 ## Seasonality check 
 season_raw <- ggseasonplot(working_hours_ts) +
@@ -183,7 +234,7 @@ season_first_diff <- ggseasonplot(working_hours_diff) +
   theme_classic2()
 
 # Combined Plot of Raw vs. First Differenced Hours Worked Index
-combo_diff_sec_diff_scatter <- ggarrange(season_raw, season_sec_diff,
+combo_diff_sec_diff_scatter <- ggarrange(season_raw, season_first_diff,
           nrow = 2, common.legend = TRUE, legend = 'right', label.x = '')
 combo_diff_sec_diff_scatter
 ```
@@ -191,13 +242,14 @@ There are 17 periods for each month with April being lowest aggregated and index
 
 ## Decompose data to inspect trend, seasonal and random events
 ```{r, echo=FALSE}
-decomp_work_hours_ts <- decompose(working_hours_ts, "additive") # Yt = Tt + St + Rt
+decomp_work_hours_ts <- decompose(working_hours_ts, "additive")
 plot(decomp_work_hours_ts)
 
 # First Differenced Hours Worked Index decomposition
-decomp_work_hours_diff <- decompose(working_hours_diff, "additive") # Yt = Tt + St + Rt
+decomp_work_hours_diff <- decompose(working_hours_diff, "additive")
 plot(decomp_work_hours_diff)
 ```
+
 The width and height of seasonal cycles over time is predictable and trend is fairly linear with the first difference of hours worked, or seasonal variation is relatively constant over time. Thus, decomposition additively (Yt = Tt + St + Rt) seems appropriate. Now that we have a solid EDA understanding of the data, let's check correlograms.
 
 ## Raw & First Difference Plot the autocorrelation and partial autocorrelations
@@ -223,7 +275,6 @@ Double checked that the lag order should be 0 as the data is already differenced
 ```{r, echo=FALSE}
 #DF test, k=5
 df_diff_data_5 = ur.df(working_hours_diff, type = "trend", lags = 0)
-
 summary(df_diff_data_5)
 ```
 Dickey-Fuller suggests that we have stationary data now, as the p-value is below 0.01 and we can reject the null hypothesis that this data is not stationary. 
@@ -233,9 +284,7 @@ Dickey-Fuller suggests that we have stationary data now, as the p-value is below
 # Fit an ARMA model with order of 2 for both terms with the first difference.
 model_ARMA212 = arima(working_hours_ts, order = c(2, 1, 2))
 summary(model_ARMA212) # RMSE = 1.275151
-
-coeftest(model_ARMA202)
-
+coeftest(model_ARMA212)
 plot(model_ARMA212)
 ```
 
@@ -247,7 +296,6 @@ arma22_AR2 = 1 - (1-arma22_R2) * (n - 1) / (n - 2 - 1)
 arma22_R2
 arma22_AR2
 ```
-
 
 ```{r}
 # Get the residuals from the ARIMA model
@@ -280,7 +328,6 @@ print(adj_rsquared)
 ```
 
 ```{r}
-
 # Residuals check ACF/PACF
 checkresiduals(model_ARMA212)
 ```
@@ -307,9 +354,7 @@ The Ljung-Box statistic is used to see if all underlying population autocorrelat
 # Fit an AR model with order of 2 for both terms with the first difference.
 model_AR210 = arima(working_hours_ts, order = c(2, 1, 0))
 summary(model_AR210) # RMSE = 1.275151
-
 coeftest(model_AR210)
-
 plot(model_AR210)
 ```
 
@@ -392,7 +437,6 @@ ma2_R2
 ma2_AR2
 ```
 
-
 ```{r}
 # Get the residuals from the ARIMA model
 ma_residuals <- residuals(model_MA012)
@@ -431,7 +475,7 @@ checkresiduals(model_MA012)
 ```{r}
 # Q-Test
 r_2_box_test <- Box.test(model_MA012$residuals, lag = 5, type = "Ljung")
-r_2_box_test # X-squared = 0.22148, df = 5, p-value = 0.9989
+r_2_box_test # X-squared = 0.22148, df = 5, p-value = 0.9989 - No serial Correlations/residuals independently distributed
 ```
 
 ```{r}
@@ -459,13 +503,17 @@ length(ps_work) #21
 model_arma2112_estimate <- arima(es_work, order = c(2,1,2))
 fcast1 <-forecast(model_arma2112_estimate, h= 1)  # Point Forecast     Lo 80    Hi 80     Lo 95    Hi 95
                                                     # -0.05683105 -1.775835 1.662173 -2.685821 2.572158
+summary(model_arma2112_estimate)
+summary(fcast1) # RMSE = 1.334011 , MAE = .4598895
 e1 <- ps_work - fcast1$mean # 0.7568311
 MSE1 <- mean(e1^2) # 0.5727932
 
 # ARMA(2,1,0)
 model_arma210_estimate <- arima(es_work, order = c(2,1,0))
 fcast2 <-forecast(model_arma210_estimate, h= 1)  # Point Forecast     Lo 80    Hi 80     Lo 95    Hi 95
-                                                    # 0.2416706    -1.821441 2.304783 -2.913587 3.39692   
+                                                    # 0.2416706    -1.821441 2.304783 -2.913587 3.39692 
+summary(model_arma210_estimate)
+summary(fcast2) # RMSE = 1.60545 , MAE = 0.5050574
 e2 <- ps_work - fcast2$mean # 0.4583294
 MSE2 <- mean(e2^2) # 0.2100658
 
@@ -473,99 +521,93 @@ MSE2 <- mean(e2^2) # 0.2100658
 model_arma012_estimate <- arima(es_work, order = c(0,1,2))
 fcast4 <-forecast(model_arma012_estimate, h= 1)  # Point Forecast     Lo 80    Hi 80     Lo 95    Hi 95
                                                   # 0.05086249     -1.694539 1.796264 -2.618499 2.720224 
+summary(fcast4) # 1.354522, MAE = 0.4427572
 e4 <- ps_work - fcast4$mean # 0.6491375
 MSE4 <- mean(e4^2) # 0.4213795
 ```
 
-
+# AR2
 ```{r}
 ###########################################################################################################################
 
-# Fixed Scheme - Professor
+# Fixed Scheme - Professor Example
 fcast1<-numeric(21) #generate a vector of 21 zeros as we have 132 total observations, using 112 as estimation sample 21= prediction sample.
-model<-dynlm(working_hours_ts ~ stats::lag(working_hours_ts,-1)+ stats::lag(working_hours_ts,-2), start=c(2006,4), end=c(2021,6)) #fit AR(3), last 20 in t.s. stops
+model<-dynlm(working_hours_diff ~ stats::lag(working_hours_diff,-1)+ stats::lag(working_hours_diff,-2), start=c(2006,4), end=c(2021,6)) #fit AR(2), last 21 in t.s. stops
 for (i in 1:21){ #start a for loop
-  fcast1[i]<-coef(model)[1]+coef(model)[2]*working_hours_ts[182+i]+coef(model)[3]*working_hours_ts[181+i] #fill in forecasted values at the end of each iteration
-} 
+  fcast1[i]<-coef(model)[1]+coef(model)[2]*working_hours_diff[182+i]+coef(model)[3]*working_hours_diff[181+i] #fill in forecasted values at the end of each iteration
+}
 
 # Coefficients:
-#                      (Intercept)  stats::lag(working_hours_ts, -1)  stats::lag(working_hours_ts, -2)  
-#                          2.47647                           0.96502                           0.01104  
+#                        (Intercept)  stats::lag(working_hours_diff, -1)  stats::lag(working_hours_diff, -2)  
+#                            0.06365                            -0.02819                            -0.16351   
 
 
-g0<-window(working_hours_ts, start=c(2021,7))
+g0<-window(working_hours_diff, start=c(2021,7))
 f1<-ts(fcast1, frequency = 12, start=c(2021,7))
-
 
 fcast1<-numeric(21) #generate a vector of 20 zeros
 ferror1<-numeric(21) #generate a vector of 20 zeros
 loss1<-numeric(21) #generate a vector of 20 zeros
 
 for (i in 1:21){ 
-  fcast1[i]<-working_hours_ts[183+i]
-  ferror1[i]<-working_hours_ts[183+i]- fcast2[i] #fill in forecasted values at the end of each iteration
+  fcast1[i]<-working_hours_diff[182+i]
+  ferror1[i]<-working_hours_diff[183+i]- fcast1[i] #fill in forecasted values at the end of each iteration
   loss1[i] <-ferror1[i]^2
  } 
-cbind(fcast2, ferror1, loss1)
-MSE2 <- mean(loss1)
+cbind(fcast1, ferror1, loss1)
+MSE1 <- mean(loss1)
 
 mpetest <- lm(ferror1 ~ 1)
 summary(mpetest)
 
-
-IETest <- lm(ferror1 ~ fcast2)
+IETest <- lm(ferror1 ~ fcast1)
 summary(IETest)
-
-
+checkresiduals(fcast1)
+```
 # FORECAST MA2
-fcast2<-numeric(21) #generate a vector of 21 zeros as we have 132 total observations, using 112 as estimation sample 21= pred.
-model2 <-dynlm(working_hours_ts ~ stats::lag(working_hours_ts,1)+ stats::lag(working_hours_ts,2), start=c(2006,4), end=c(2021,6)) #fit AR(3), last 20 in t.s. stops
-for (i in 1:21){ #start a for loop
-  fcast1[i]<-coef(model)[1]+coef(model)[2]*working_hours_ts[182+i]+coef(model)[3]*working_hours_ts[181+i] # forecasted values at the end of each iteration
-} 
 
+```{r}
+fcast2<-numeric(21) #generate a vector of 21 zeros as we have 132 total observations, using 112 as estimation sample 21= pred.
+model2 <-dynlm(working_hours_diff ~ stats::lag(working_hours_diff,1)+ stats::lag(working_hours_diff,2), start=c(2006,4), end=c(2021,6)) #fit AR(3), last 20 in t.s. stops
+for (i in 1:21){ #start a for loop
+  fcast1[i]<-coef(model2)[1]+coef(model2)[2]*working_hours_diff[182+i]+coef(model2)[3]*working_hours_diff[181+i] # forecasted values at the end of each iteration
+} 
 # 
 # Coefficients:
 #                     (Intercept)  stats::lag(working_hours_ts, 1)  stats::lag(working_hours_ts, 2)  
                         # 3.05034                          0.95877                          0.01055  
 
-
-g0<-window(working_hours_ts, start=c(2021,7))
 f2<-ts(fcast2, frequency = 12, start=c(2021,7))
-
-
-fcast2<-numeric(21) #generate a vector of 20 zeros
-ferror2<-numeric(21) #generate a vector of 20 zeros
-loss2<-numeric(21) #generate a vector of 20 zeros
-
+fcast2<-numeric(21) #generate a vector of 21 zeros
+ferror2<-numeric(21) #generate a vector of 21 zeros
+loss2<-numeric(21) #generate a vector of 21 zeros
 for (i in 1:21){ 
-  fcast2[i]<-working_hours_ts[183+i]
-  ferror2[i]<-working_hours_ts[183+i]- fcast2[i] #fill in forecasted values at the end of each iteration
+  fcast2[i]<-working_hours_diff[183+i]
+  ferror2[i]<-working_hours_diff[183+i]- fcast2[i] #fill in forecasted values at the end of each iteration
   loss2[i] <-ferror2[i]^2
  } 
 cbind(fcast2, ferror2, loss2)
 MSE2 <- mean(loss2)
-
 mpetest <- lm(ferror2 ~ 1)
 summary(mpetest)
-
-
 IETest <- lm(ferror2 ~ fcast2)
 summary(IETest)
-
-
+checkresiduals(fcast2)
+```
 
 # FORECAST ARMA(2,2)
-fcast2<-numeric(21) #generate a vector of 21 zeros as we have 132 total observations, using 112 as estimation sample 21= pred.
-model2 <-dynlm(working_hours_ts ~ stats::lag(working_hours_ts,1)+ stats::lag(working_hours_ts,2), start=c(2006,4), end=c(2021,6)) #fit AR(3), last 20 in t.s. stops
+```{r}
+fcast3<-numeric(21) #generate a vector of 21 zeros as we have 132 total observations, using 112 as estimation sample 21= pred.
+# model3 <-dynlm(working_hours_diff ~ stats::lag(working_hours_diff,1)+ stats::lag(working_hours_diff,2), start=c(2006,4), 
+#                end=c(2021,6)) #fit AR(3), last 20 in t.s. stops
+model3 <- dynlm(working_hours_diff ~ L(working_hours_diff, 1) + L(working_hours_diff, 2) + L(residuals(model), 1) + L(residuals(model), 2))   # we'll have to look into.
+
 for (i in 1:21){ #start a for loop
-  fcast1[i]<-coef(model)[1]+coef(model)[2]*working_hours_ts[182+i]+coef(model)[3]*working_hours_ts[181+i] # forecast values at the end of each iteration
+  fcast3[i]<-coef(model3)[1]+coef(model3)[2]*working_hours_diff[182+i]+coef(model3)[3]*working_hours_diff[181+i]+
+    coef(model3)[4]*working_hours_diff[182+i]# forecast values at the end of each iteration, Note: should be pulling 4 coefficients.
 } 
 
-arma_model <- dynlm(working_hours_ts ~ L(working_hours_ts, 1) + L(working_hours_ts, 2) + L(residuals(model), 1) + L(residuals(model), 2))   # we'll have to look into.
-
-
-# 
+# double-check later
 # Coefficients:
 #            (Intercept)  L(working_hours_ts, 1)  L(working_hours_ts, 2)  L(residuals(model), 1)  L(residuals(model), 2)  
 #                -0.4676                  1.7679                 -0.7632                 -0.8300                 -0.1525  
@@ -577,26 +619,37 @@ ferror3<-numeric(21) #generate a vector of 20 zeros
 loss3<-numeric(21) #generate a vector of 20 zeros
 
 for (i in 1:21){ 
-  fcast3[i]<-working_hours_ts[183+i]
-  ferror3[i]<-working_hours_ts[183+i]- fcast2[i] #fill in forecasted values at the end of each iteration
+  fcast3[i]<-working_hours_diff[183+i]
+  ferror3[i]<-working_hours_diff[183+i]- fcast2[i] #fill in forecasted values at the end of each iteration
   loss3[i] <-ferror1[i]^2
- } 
-cbind(fcast3, ferror3, loss3)
-MSE3 <- mean(loss3)
+} 
 
+cbind(fcast3, ferror3, loss3)
+MSE3 <- mean(loss3) # 0.3957143
 mpetest <- lm(ferror3 ~ 1)
 summary(mpetest)
-
-
 IETest <- lm(ferror3 ~ fcast3)
 summary(IETest)
+checkresiduals(fcast3)
+
+comb<-lm(g0~(fcast1)+(fcast2)+(fcast3)) 
+summary(comb)
+
+fcast4<-numeric(21) #generate a vector of 20 zeros
+ferror4<-numeric(21) #generate a vector of 20 zeros
+loss4<-numeric(21) #generate a vector of 20 zeros
+
+fcast4 <- comb$fitted.values
+ferror4 <- g0-fcast4
+loss4 <-ferror4^2
+
+MSE4 <- mean(loss4)
 
 
-# Table 9.8  P246
-# Optimal Linear Combinations
+```
 
-
-comb<-lm(g0~(fcast1)+(fcast2)+(fcast3))  # Work on weights w/ MSE's above.
+```{r}
+comb<-lm(g0~(fcast1)+(fcast2)+(fcast3)) 
 summary(comb)
 
 fcast4<-numeric(21) #generate a vector of 20 zeros
