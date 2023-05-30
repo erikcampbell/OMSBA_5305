@@ -33,7 +33,6 @@ library(lmtest)
 library(lubridate)
 library(TSstudio)
 library(plotly)
-library(scales)
 ```
 
 https://fred.stlouisfed.org/series/AWHAE
@@ -669,8 +668,8 @@ abline(h = .05, col = "red", lty = 3)
 
 ```{r}
 # Forecast 6 months
-fcast_MA012 = forecast(model_MA012, h=6)
-autoplot(fcast_MA21, include = 12, ylab = "Working hours - Base 2007 with 100")
+fcast_MA012 <- forecast(model_MA012, h=6)
+autoplot(fcast_MA012, include = 12, ylab = "Working hours - Base 2007 with 100")
 summary(fcast_MA012)
 
 # Interactive Chart
@@ -706,7 +705,7 @@ test_diff <- window(working_hours_diff, start=c(2021,8),end=c(2023,3)) # 20 obse
 arma212_train <- arima(train, order = c(2,1,2))
 autoplot(arma212_train)
 coeftest(arma212_train)
-summary(arma212_train) # RMSE = 1.330678, sigma^2 estimated as 1.78
+summary(arma212_train) # MSE = 1.77070394, RMSE = 1.330678, sigma^2 estimated as 1.78
 # Coefficients:
 #          ar1     ar2      ma1      ma2
 #       0.1857  0.1082  -0.2218  -0.2726
@@ -719,7 +718,7 @@ accuracy(arma212_forecast)
 error <- test - arma212_forecast$mean
 loss <- error^2
 mse_arma212 <- mean(error^2) # 27.10559
-mpe_test <-lm(error~1) # 4.83
+mpe_test <-lm(error~1) # 4.83, t = 11.11, p-value 5.25e-10
 summary(mpe_test)
 #IET <- lm(error~arma212_forecast) problems.  
 #summary(IET)
@@ -832,7 +831,7 @@ arma210_interactive
 ```
 
 ## ARMA (2,0,0) Using First Difference Time-Series
-```{r, echo=False}
+```{r, echo=FALSE}
 arma200_train_diff <- arima(train_diff, order = c(2,0,0)) 
 autoplot(arma200_train_diff)
 coeftest(arma200_train_diff)
@@ -919,7 +918,7 @@ checkresiduals(fcast2)
 ```
 
 ## ARMA(0,1,2) Using Base Time-Series
-```{r}
+```{r, echo=FALSE}
 arma012_train <- arima(train, order = c(0,1,2))
 autoplot(arma012_train)
 coeftest(arma012_train)
@@ -946,7 +945,7 @@ errors_arma012 <- accuracy(arma012_forecast, test) %>%
 
 # Basic Research for IET test - 
 errors_arma012 <- arma012_forecast$residuals  # Residuals on testing fit - helpful for IET testing?
-IET_test <- lm(error ~ arma012_forecast)
+#IET_test <- lm(error ~ arma012_forecast)
 
 # Plots
 auto_arma012_train_predicted_vs_actual <- autoplot(arma012_forecast) +
@@ -1029,120 +1028,10 @@ errors_MA4 <- accuracy(fcast_MA4, test) %>%
 
 
 ###### PROFESSOR/SURPLUS
-```{r}
-###########################################################################################################################
 
-# Fixed Scheme - Professor Example
-fcast1<-numeric(21) #generate a vector of 21 zeros as we have 132 total observations, using 112 as estimation sample 21= prediction sample.
-model<-dynlm(working_hours_diff ~ stats::lag(working_hours_diff,-1)+ stats::lag(working_hours_diff,-2), start=c(2006,4), end=c(2021,6)) #fit AR(2), last 21 in t.s. stops
-for (i in 1:21){ #start a for loop
-  fcast1[i]<-coef(model)[1]+coef(model)[2]*working_hours_diff[182+i]+coef(model)[3]*working_hours_diff[181+i] #fill in forecasted values at the end of each iteration
-}
-
-# g0<-window(working_hours_diff, start=c(2021,7))
-# f1<-ts(fcast1, frequency = 12, start=c(2021,7))
-# 
-# fcast1<-numeric(21) #generate a vector of 20 zeros
-# ferror1<-numeric(21) #generate a vector of 20 zeros
-# loss1<-numeric(21) #generate a vector of 20 zeros
-# 
-# for (i in 1:21){ 
-#   fcast1[i]<-working_hours_diff[182+i]
-#   ferror1[i]<-working_hours_diff[183+i]- fcast1[i] #fill in forecasted values at the end of each iteration
-#   loss1[i] <-ferror1[i]^2
-#  } 
-# cbind(fcast1, ferror1, loss1)
-# MSE1 <- mean(loss1)
-# 
-# mpetest <- lm(ferror1 ~ 1)
-# summary(mpetest)
-# 
-# IETest <- lm(ferror1 ~ fcast1)
-# summary(IETest)
-# checkresiduals(fcast1)
-```
-
-
-# FORECAST MA2 - DYNLM
-```{r}
-fcast_ma2<-numeric(21) 
-model_ma2 <-dynlm(working_hours_ts ~ L(residuals(working_hours_ts,-1)) + 
-                    L(residuals(working_hours_ts,-2)),
-                    start=c(2006,3), end=c(2021,6))
-
-# Coefficients:
-#               (Intercept)  L(working_hours_diff, -1)  L(working_hours_diff, -2)  
-#                   0.06618                   -0.02778                   -0.16253 
-
-for (i in 1:test_diff){ #start a for loop
-  fcast_ma2[i]<-coef(model_ma2)[1]+coef(model_ma2)[2]*working_hours_diff[182+i]+coef(model2)[3]*working_hours_diff[181+i] # forecasted values at the end of each iteration
-} 
-
-
-
-f2<-ts(fcast2, frequency = 12, start=c(2021,7))
-fcast2<-numeric(21) #generate a vector of 21 zeros
-ferror2<-numeric(21) #generate a vector of 21 zeros
-loss2<-numeric(21) #generate a vector of 21 zeros
-for (i in 1:21){ 
-  fcast2[i]<-working_hours_diff[183+i]
-  ferror2[i]<-working_hours_diff[183+i]- fcast2[i] #fill in forecasted values at the end of each iteration
-  loss2[i] <-ferror2[i]^2
- } 
-cbind(fcast2, ferror2, loss2)
-MSE2 <- mean(loss2)
-mpetest <- lm(ferror2 ~ 1)
-summary(mpetest)
-IETest <- lm(ferror2 ~ fcast2)
-summary(IETest)
-checkresiduals(fcast2)
-```
-
-# FORECAST ARMA(2,2)
-```{r}
-fcast3<-numeric(21) #generate a vector of 21 zeros as we have 132 total observations, using 112 as estimation sample 21= pred.
-
-model3 <- dynlm(working_hours_diff ~ L(working_hours_diff, -1) + L(working_hours_diff, -2) + L(residuals(model3), -1) + L(residuals(model3), -2))   # we'll have to look into.
-
-for (i in 1:21){ #start a for loop
-  fcast3[i]<-coef(model3)[1]+coef(model3)[2]*working_hours_diff[182+i]+coef(model3)[3]*working_hours_diff[181+i]+
-    coef(model3)[4]*working_hours_diff[182+i]# forecast values at the end of each iteration, Note: should be pulling 4 coefficients.
-} 
-
-fcast3<-numeric(21) #generate a vector of 20 zeros
-ferror3<-numeric(21) #generate a vector of 20 zeros
-loss3<-numeric(21) #generate a vector of 20 zeros
-
-for (i in 1:21){ 
-  fcast3[i]<-working_hours_diff[183+i]
-  ferror3[i]<-working_hours_diff[183+i]- fcast2[i] #fill in forecasted values at the end of each iteration
-  loss3[i] <-ferror1[i]^2
-} 
-
-cbind(fcast3, ferror3, loss3)
-MSE3 <- mean(loss3) # 0.3957143
-mpetest <- lm(ferror3 ~ 1)
-summary(mpetest)
-IETest <- lm(ferror3 ~ fcast3)
-summary(IETest)
-checkresiduals(fcast3)
-
-comb<-lm(g0~(fcast1)+(fcast2)+(fcast3)) 
-summary(comb)
-
-fcast4<-numeric(21) #generate a vector of 20 zeros
-ferror4<-numeric(21) #generate a vector of 20 zeros
-loss4<-numeric(21) #generate a vector of 20 zeros
-
-fcast4 <- comb$fitted.values
-ferror4 <- g0-fcast4
-loss4 <-ferror4^2
-
-MSE4 <- mean(loss4)
-
-```
 
 ```{r}
+
 comb<-lm(g0~(fcast1)+(fcast2)+(fcast3)) 
 summary(comb)
 
