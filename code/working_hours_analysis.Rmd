@@ -737,14 +737,14 @@ length(es_work)# 183 observations
 ps_work <- window(working_hours_diff, start=c(2021,7),end=c(2023,3))
 length(ps_work) #21
 
-# ARMA(2,1,2)
+# ARMA(2,1,2) - Top 3
 model_arma2112_estimate <- arima(es_work, order = c(2,1,2))
 fcast1 <-forecast(model_arma2112_estimate, h= 1)  # Point Forecast     Lo 80    Hi 80     Lo 95    Hi 95
                                                     # -0.05683105 -1.775835 1.662173 -2.685821 2.572158
 e1 <- ps_work - fcast1$mean # 0.7568311
 MSE1 <- mean(e1^2) # 0.5727932
 
-# ARMA(2,1,0)
+# ARMA(2,1,0) - Top 3
 model_arma210_estimate <- arima(es_work, order = c(2,1,0))
 fcast2 <-forecast(model_arma210_estimate, h= 1)  # Point Forecast     Lo 80    Hi 80     Lo 95    Hi 95
                                                     # 0.2416706    -1.821441 2.304783 -2.913587 3.39692   
@@ -758,7 +758,7 @@ fcast3 <-forecast(model_arma011_estimate, h= 1)  # Point Forecast     Lo 80    H
 e3 <- ps_work - fcast3$mean # 0.6448087
 MSE3 <- mean(e3^2) # 0.4157783
 
-# ARMA(0,1,2)
+# ARMA(0,1,2) - Top 3
 model_arma012_estimate <- arima(es_work, order = c(0,1,2))
 fcast4 <-forecast(model_arma012_estimate, h= 1)  # Point Forecast     Lo 80    Hi 80     Lo 95    Hi 95
                                                   # 0.05086249     -1.694539 1.796264 -2.618499 2.720224 
