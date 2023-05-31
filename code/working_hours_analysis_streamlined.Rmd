@@ -13,7 +13,7 @@ editor_options:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
 library(urca)
 library(dynlm)
@@ -71,9 +71,8 @@ working_hours_diff = diff(working_hours_ts)
 # plot(cvar(working_hours_diff), type = "l") # Looks more stable.
 ```
 
-# EDA
-## Plot Raw Data
-```{r, echo = FALSE}
+# EDA Raw Data
+```{r, echo = FALSE, warning=FALSE}
 plot_work_hours <- ggplot(working_hours1, aes(x = observation_date, 
                                              y = hours_worked_index)
                           ) +
@@ -195,7 +194,7 @@ ggplotly(raw_season)
 This box plot is another method to look at potential seasonality by month from 2006-2023. The Q1 and Q4 are slightly higher than Q2 and Q3 as present in the box plot which is indicative of a cycle. First let's address the Trend and maybe the seasonality with taking the first difference. It is clearly evident that taking the first-difference of indexed hours worked is worth exploring.
 
 ## Add in First Difference
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # create First Difference of Hours Worked Index
 working_hours_diff = diff(working_hours_ts)
 
@@ -301,7 +300,7 @@ decomp_work_hours_diff
 The width and height of seasonal cycles over time is predictable and trend is fairly linear with the first difference of hours worked, or seasonal variation is relatively constant over time. Thus, decomposition additively (Yt = Tt + St + Rt) seems appropriate. We'll check if differencing of seasonality required using nsdiffs() function.  
 
 ## Seasonal Differencing Check
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 working_hours_diff %>% nsdiffs()
 ```
 
@@ -371,7 +370,7 @@ summary(kpss_first_difference)
 The normal time series without differencing as a t-statistics of 3.2645, which is much higher than critical value at 10 pct significance-level.  When we difference working hours and complete KPSS, our t-statistic is .01174 and lower than critical value at 1 pct.  This confirms Dickey-Fuller that differencing hours worked makes the time series stationary.
 
 # Model Fitting and Analysis (2,1,2)
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Fit an ARMA model with order of 2 for both terms with the first difference.
 model_ARMA212 = arima(working_hours_ts, order = c(2, 1, 2))
 summary(model_ARMA212) # RMSE = 1.275151
@@ -396,7 +395,7 @@ arma22_R2 # 0.9618898
 arma22_AR2 # 0.9611276
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Get the residuals from the ARIMA model
 arma_residuals <- residuals(model_ARMA212)
 
@@ -429,7 +428,7 @@ print(rsquared)
 print(adj_rsquared)
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Residuals check ACF/PACF
 checkresiduals(model_ARMA212)
 
@@ -445,7 +444,7 @@ qqnorm(residuals(model_ARMA212), main = 'ARMA(2,1,2) Residuals')
 qqline(model_ARMA212$residuals, col = 'red')
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Q-Test
 r_2_box_test <- Box.test(model_ARMA212$residuals, lag = 5, type = "Ljung")
 r_2_box_test # X-squared = 0.22148, df = 5, p-value = 0.9989
@@ -461,7 +460,7 @@ plot(QTest, main = "ARMA(2,1,2) Q Test", xlab = "lag", ylab = "p-value")
 abline(h = .05, col = "red", lty = 3)
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Forecast 6 months
 fcast_ARMA212 = forecast(model_ARMA212, h=6)
 autoplot(fcast_ARMA212, include = 12, ylab = "Working hours - Base 2007 with 100") 
@@ -478,7 +477,7 @@ So we have a reasonably good fit here with a ARMA(2,2) model the AIC is 689.72 w
 The Ljung-Box statistic is used to see if all underlying population autocorrelations for the error may be zero. Our t-stat was 0.0015358 and p-value of 0.9968 given 5 lags, which is well above 0.05 -a significant threshold for non-zero autocorrelations that rejects null that residuals are independently distributed.
 
 # AR(2)
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Fit an AR model with order of 2 for both terms with the first difference.
 model_AR210 = arima(working_hours_ts, order = c(2, 1, 0))
 summary(model_AR210) # RMSE = 1.27648, MAE = 0.4587968, MPE = 0.08211823, MAPE = 0.4575043 
@@ -494,7 +493,7 @@ if (all(abs(polyroot(c(1, -model_AR210$coef))) < 1)) {
 }  #Not invertible
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # R-Squared from Week 6-Chapter 8 practice problem set
 n = length(working_hours_ts)
 ar2_R2 = cor(fitted(model_AR210), working_hours_ts)^2  # 0.9618626
@@ -503,7 +502,7 @@ ar2_R2
 ar2_AR2
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Get the residuals from the ARIMA model
 ar_residuals <- residuals(model_AR210)
 
@@ -533,7 +532,7 @@ print(rsquared)
 print(adj_rsquared)
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Residuals check ACF/PACF
 checkresiduals(model_AR210)
 
@@ -549,7 +548,7 @@ qqnorm(residuals(model_AR210), main = 'ARMA(2,1,0) Residuals')
 qqline(model_AR210$residuals, col = 'red')
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Q-Test
 r_2_box_test <- Box.test(model_AR210$residuals, lag = 3, type = "Ljung")
 r_2_box_test # X-squared = 0.24939, df = 3, p-value = 0.9692
@@ -565,7 +564,7 @@ plot(QTest, main = "AR2 Q Test", xlab = "lag", ylab = "p-value")
 abline(h = .05, col = "red", lty = 3)
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Forecast 6 months
 fcast_AR21 = forecast(model_AR210, h=6)
 autoplot(fcast_AR21, include = 12, ylab = "Working hours - Base 2007 with 100") 
@@ -578,7 +577,7 @@ fcast_AR21_plot
 The AIC is 685.56, both phi parameters are < 1, our adjusted r-squared is 0.9614188 and RMSE is 1.2769. Our Q-test using Ljung was 0.24938500 and p-value looked good at 0.9692 with three lags. The AIC was lower than ARMA 2,1,2 and adjusted r-squared was marginally better.  
 
 # MA(2)
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Fit an MA model with order of 2 for both terms with the first difference.
 model_MA012 = arima(working_hours_ts, order = c(0, 1, 2))
 summary(model_MA012) # RMSE = 1.275151
@@ -595,7 +594,7 @@ if (all(abs(polyroot(c(1, -model_MA012$coef))) < 1)) {
 
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # R-Squared from Week 6-Chapter 8 practice problem set
 n = length(working_hours_ts)
 ma2_R2 = cor(fitted(model_MA012), working_hours_ts)^2  # 0.9618626
@@ -604,7 +603,7 @@ ma2_R2
 ma2_AR2
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Get the residuals from the ARIMA model
 ma_residuals <- residuals(model_MA012)
 
@@ -634,7 +633,7 @@ print(rsquared)
 print(adj_rsquared)
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Residuals check ACF/PACF
 checkresiduals(model_MA012)
 
@@ -650,7 +649,7 @@ qqnorm(residuals(model_MA012), main = 'ARMA(2,1,0) Residuals')
 qqline(model_MA012$residuals, col = 'red')
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Q-Test
 r_2_box_test <- Box.test(model_MA012$residuals, lag = 3, type = "Ljung")
 r_2_box_test # X-squared = 0.22148, df = 5, p-value = 0.9989 - No serial Correlations/residuals independently distributed
@@ -666,7 +665,7 @@ plot(QTest, main = "MA2 Q Test", xlab = "lag", ylab = "p-value")
 abline(h = .05, col = "red", lty = 3)
 ```
 
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 # Forecast 6 months
 fcast_MA012 <- forecast(model_MA012, h=6)
 autoplot(fcast_MA012, include = 12, ylab = "Working hours - Base 2007 with 100")
@@ -684,11 +683,11 @@ Our preferred model is ________ because __________________________________.
 
 
 # Step 2 DTC -- OUT OF SAMPLE --
-# Forecasting Environment for Train/Test split: Estimation Sample and Prediciton Sample.
+## Forecasting Environment for Train/Test split: Estimation Sample and Prediciton Sample.
 There are 204 observations and we'll be doing a 90% / 10% split, thus our estimation sample with have 184 observations and our prediction sample will have 21 observations. We'll be applying a fixed scheme that will produce only one estimate and does not allow for parameter updating.
 
-# Data Split into Train & Test Samples
-```{r}
+## Data Split into Train & Test Samples
+```{r, echo=FALSE, warning=FALSE}
 # split of time-series base time-series
 length(working_hours_ts)
 train <- window(working_hours_ts,start=c(2006,3),end=c(2021,6)) # 184 observations
@@ -711,37 +710,50 @@ summary(arma212_train) # MSE = 1.77070394, RMSE = 1.330678, sigma^2 estimated as
 #       0.1857  0.1082  -0.2218  -0.2726
 # s.e.  0.4234  0.3667   0.4105   0.3649
 
+# Forecast using coefficients from model out for 21 periods
 arma212_forecast <- forecast(arma212_train, h = length(test))
 accuracy(arma212_forecast)
 
-# Error, Loss (Error^2), MSE and MPE test
+# convert forecast into dataframe
+arma212_forecast_df <- as.data.frame(arma212_forecast)
+
+# Error, Loss, MSE and MPE test
 error <- test - arma212_forecast$mean
 loss <- error^2
 mse_arma212 <- mean(error^2) # 27.10559
+
 mpe_test <-lm(error~1) # 4.83, t = 11.11, p-value 5.25e-10
 summary(mpe_test)
-#IET <- lm(error~arma212_forecast) problems.  
-#summary(IET)
+
+# Combine test, point forecast, error, mse, loss into one dataframe
+final_arma212 <- as.data.frame(cbind(test,arma212_forecast_df$`Point Forecast`, error, loss, mse_arma212))
+
+# Information Efficiency Test
+IET <- lm(error~arma212_forecast_df$`Point Forecast`)  
+summary(IET)
+
 checkresiduals(arma212_forecast)
 
 # Train vs. Test Accuracy Metrics - Consolidated
 errors_arma212 <- forecast::accuracy(arma212_forecast, test) %>%
   as.data.frame() 
 errors_arma212
-#                      ME     RMSE       MAE        MPE      MAPE      MASE         ACF1 Theil's U
-# Training set 0.07429913 1.330678 0.4737119 0.06076164 0.4778019 0.1723317 -0.003449782        NA
-# Test set     4.82960956 5.206303 4.8296096 4.26126071 4.2612607 1.7569646  0.834828738  10.37058
+#                      ME     RMSE    MSE           MAE        MPE      MAPE    
+# Training set 0.07429913 1.330678  1.770704   0.4737119 0.06076164 0.4778019  
+# Test set     4.82960956 5.206303  27.10559   4.8296096 4.26126071 4.2612607    
 
 # Plots
 auto_arma212_predicted_vs_actual <- autoplot(arma212_forecast) + autolayer(test)
 auto_arma212_predicted_vs_actual
 
 # Interactive Plots
-arma212_interactive <- test_forecast(actual = working_hours_ts, forecast.obj = arma212_forecast, test = test)
+arma212_interactive <- test_forecast(actual = working_hours_ts, 
+                                     forecast.obj = arma212_forecast,
+                                     test = test)
 arma212_interactive
 ```
 
-## ARMA(2,1,2) Using First Difference Time-Series
+# ARMA(2,1,2) Using First Difference Time-Series
 ```{r, echo=FALSE}
 arma212_train_diff <- arima(train_diff, order = c(2,0,2))
 autoplot(arma212_train_diff)
@@ -756,23 +768,35 @@ summary(arma212_train_diff) # RMSE = 1.329969, sigma^2 estimated as 1.79
 arma212_forecast_diff <- forecast(arma212_train_diff, h = length(test_diff))
 arma212_forecast_diff
 
+# convert forecast into dataframe
+arma212_forecast_diff_df <- as.data.frame(arma212_forecast_diff)
+
 # Error, Loss, MSE and MPE test
 error_diff <- test_diff - arma212_forecast_diff$mean
 loss_diff <- error_diff^2
 mse_arma212_diff <- mean(error_diff^2) # 0.2455598
+
 mpe_test_diff <-lm(error_diff~1) # 0.268
-summary(mpe_test_diff)
+summary(mpe_test_diff) #t value = 2.803 p = 0.0114
+
+# Combine test, point forecast, error, mse, loss into one dataframe
+final_arma212_diff <- as.data.frame(cbind(test_diff,arma212_forecast_diff_df$`Point Forecast`,
+                            error_diff, loss_diff, mse_arma212_diff))
+
+# Information Efficiency Test
+IET <- lm(error_diff ~ arma212_forecast_diff_df$`Point Forecast`)  
+summary(IET) # t-value = -1.630 p = .1205
+
 checkresiduals(arma212_forecast_diff)
 
 # Train vs. Test Accuracy Metrics
 errors_arma212_diff <- forecast::accuracy(arma212_forecast_diff, test_diff) %>%
   as.data.frame()
-#                        ME      RMSE       MAE      MPE     MAPE      MASE          ACF1 Theil's U
-# Training set 0.0008038631 1.3299691 0.4516580      NaN      Inf 0.6583489 -0.0006102248        NA
-# Test set     0.2679991559 0.4955399 0.4066763 112.2334 112.2334 0.5927824 -0.1767881727 0.8677364
-
-# # Residuals between model and Train Data
-# T testing errors
+#                        ME      RMSE    MSE           MAE        MPE     MAPE    
+# Training set 0.0008038631 1.3299691   1.768818   0.4516580      NaN      Inf  
+# Test set     0.2679991559 0.4955399   0.2455598  0.4066763 112.2334 112.2334  
+  
+# Residuals between model and Train Data
 errors_arma212_diff <- arma212_forecast_diff$residuals
 
 # Plots
@@ -785,7 +809,7 @@ arma212_diff_interactive <- test_forecast(actual = working_hours_diff,
 arma212_diff_interactive
 ```
 
-## ARMA(2,1,0) Using Base Time-Series
+# ARMA(2,1,0) Using Base Time-Series
 ```{r, echo=FALSE}
 arma210_train <- arima(train, order = c(2,1,0)) 
 autoplot(arma210_train)
@@ -793,12 +817,15 @@ coeftest(arma210_train)
 summary(arma210_train) # RMSE = 1.334404, sigma^2 estimated as 1.79
 # Coefficients:
 #           ar1      ar2
-#       -0.0262  -0.1600 *
+#       -0.0262  -0.1600 
 # s.e.   0.0728   0.0726
 
 # Forecast on test sample 
 arma210_forecast <-forecast(arma210_train, h= length(test))
 arma210_forecast
+
+# convert forecast into dataframe
+arma210_forecast_df <- as.data.frame(arma210_forecast)
 
 # Error, Loss, MSE and MPE test
 error <- test-arma210_forecast$mean
@@ -806,17 +833,25 @@ loss <- error^2
 mse_arma210 <- mean(error^2) # 24.57494
 mpe_test <- lm(error~1) # 4.571
 summary(mpe_test)
+
+# Combine test, point forecast, error, mse, loss into one dataframe
+final_arma210 <- as.data.frame(cbind(test,arma210_forecast_df$`Point Forecast`, 
+                                     error, loss))
+
+# Information Efficiency Test
+IET <- lm(error ~ arma210_forecast_df$`Point Forecast`)  
+summary(IET) # t-value = -0.237  p = .815 
+
 checkresiduals(arma210_forecast)
 
 # Train vs. Test Accuracy Metrics
 errors_arma210 <- forecast::accuracy(arma210_forecast, test) %>%
   as.data.frame()
-#                      ME     RMSE       MAE        MPE      MAPE      MASE         ACF1 Theil's U
-# Training set 0.06505855 1.334404 0.4638089 0.05273247 0.4675245 0.1687291 -0.007420601        NA
-# Test set     4.57096340 4.957312 4.5709634 4.03185528 4.0318553 1.6628716  0.838859648   9.87256
+#                      ME     RMSE    MSE           MAE        MPE      MAPE     
+# Training set 0.06505855 1.334404  1.780634    0.4638089 0.05273247 0.4675245 
+# Test set     4.57096340 4.957312  24.57494    4.5709634 4.03185528 4.0318553 
 
-# Stat test to Validate Results from Out of Sample Evaluation Model Accuracy
-# T testing errors
+# Residuals between model and Train Data
 errors_arma210 <- arma210_forecast$residuals
 
 # Plots
@@ -830,7 +865,7 @@ arma210_interactive <- test_forecast(actual = working_hours_ts,
 arma210_interactive
 ```
 
-## ARMA (2,0,0) Using First Difference Time-Series
+# ARMA (2,0,0) Using First Difference Time-Series
 ```{r, echo=FALSE}
 arma200_train_diff <- arima(train_diff, order = c(2,0,0)) 
 autoplot(arma200_train_diff)
@@ -845,23 +880,34 @@ summary(arma200_train_diff)# RMSE = 1.333828 , sigma^2 estimated as 1.779
 arma200_forecast_diff <-forecast(arma200_train_diff, h= length(test_diff))
 arma200_forecast_diff
 
+# convert forecast into dataframe
+arma200_forecast_diff_df <- as.data.frame(arma200_forecast_diff)
+
 # Error, Loss, MSE and MPE test
 error <- test_diff-arma200_forecast_diff$mean
 loss <- error^2
-mse_arma200 <- mean(error^2) # 0.230621
+mse_arma200_diff <- mean(error^2) # 0.230621
 mpe_test <- lm(error~1) # 0.2533
-summary(mpe_test)
+summary(mpe_test)# p = 0.014
+
+# Combine test, point forecast, error, mse, loss into one dataframe
+final_arma200_diff <- as.data.frame(cbind(test,arma210_forecast_df$`Point Forecast`, error, 
+                            mse_arma200_diff, loss))
+
+# Information Efficiency Test
+IET <- lm(error ~ arma200_forecast_diff_df$`Point Forecast`)  
+summary(IET) # t-value = -1.010  p = .3257 
+
 checkresiduals(arma200_forecast_diff)
 
 # Train Vs. Test Accuracy Metrics
 errors_arma200_diff <- forecast::accuracy(arma200_forecast_diff, test_diff) %>%
   as.data.frame()
-#                        ME      RMSE       MAE      MPE     MAPE      MASE         ACF1 Theil's U
-# Training set 0.0002714796 1.3338285 0.4432776      NaN      Inf 0.6461335 -0.005548084        NA
-# Test set     0.2532795149 0.4802301 0.3934651 109.1354 109.1354 0.5735254 -0.220813887 0.8562286
+#                        ME      RMSE     MSE        MAE      MPE     MAPE      
+# Training set 0.0002714796 1.3338285  1.779098   0.4432776   NaN      Inf 
+# Test set     0.2532795149 0.4802301  0.2306209  0.3934651 109.1354 109.1354 
 
-# Stat test to Validate Results from Out of Sample Evaluation Model Accuracy
-# T testing errors
+# Residuals between model and Train Data
 errors_arma200_diff <- arma200_forecast_diff$residuals
 
 # Plots
@@ -876,44 +922,39 @@ arma200_diff_interactive <- test_forecast(actual = working_hours_diff,
 arma200_diff_interactive
 ```
 
-## ARMA(2,0,0) Dynamic Library & Time Series
+# ARMA(2,0,0) Dynamic Library & Time Series
 ```{r, echo=FALSE}
 # Fixed Scheme
-fcast2<-numeric(21) #generate a vector of 21 
+fcast2_dynlm<-numeric(21) #generate a vector of 21 
 model<-dynlm(working_hours_ts ~ stats::lag(working_hours_ts,-1) + 
              stats::lag(working_hours_ts,-2), 
              start=c(2006,3), end=c(2021,6)) #fit AR(2), last 21 in t.s. stops
 
 for (i in 1:21){ #start a for loop
-  fcast2[i]<-coef(model)[1]+coef(model)[2]*working_hours_ts[183+i]+
-             coef(model)[3]*working_hours_ts[182+i] # forecasted values each iteration
+  fcast2_dynlm[i]<-coef(model)[1]+coef(model)[2]*working_hours_ts[183+i]+ 
+             coef(model)[3]*working_hours_ts[184+i] #forecasted values each iteration
 } 
   # Coefficients:
   #(Intercept)  stats::lag(working_hours_ts, -1)  stats::lag(working_hours_ts, -2)  
     #2.47647                           0.96502                           0.01104 
 
-# how in the world are these coefficients of model so different from ARIMA(2,1,0)
-# or ARIMA(2,0,0)
-
-#f2 <- ts(fcast2, frequency = 12, start=c(2021,7)) # THIS MAYBE NOT NECESSARY!!!! ????
-
-
 # create vectors to capture forecast error and loss for last 21 observations real vs forecast.
 ferror2<-numeric(21) #generate a vector of 21 zeros
 loss2<-numeric(21) #generate a vector of 21 zeros
 for (i in 1:21){
-  ferror2[i]<-working_hours_ts[184+i]- fcast2[i] #fill in forecasted values at the end of each iteration
+  ferror2[i]<-working_hours_ts[184+i]- fcast2_dynlm[i] #fill in forecasted values at the end of each iteration
   loss2[i] <-ferror2[i]^2
 }
 
-cbind(test,fcast2, ferror2, loss2)
-MSE2 <- mean(loss2) #  0.4344058
+ar2_dynlm <- as.data.frame(cbind(test,fcast2, ferror2, loss2))
 
+RMSE <- sqrt(mean(test-fcast2)^2) # 0.5378386 - RUN : cbind(final_arma210,ar2_dynlm$fcast2, ar2_dynlm$ferror2, ar2_dynlm$loss2)
+MSE2 <- mean(loss2) #  0.4344058 - What?
 mpetest <- lm(ferror2 ~ 1)
 summary(mpetest)
 
 IETest <- lm(ferror2 ~ fcast2)
-summary(IETest)
+summary(IETest) # t = -1.648 p = .1159  
 checkresiduals(fcast2)
 ```
 
@@ -931,21 +972,29 @@ summary(arma012_train) # 1.332218, sigma^2 estimated as 1.784
 arma012_forecast <- forecast(arma012_train, h = length(test)) # predict - n=21
 arma012_forecast
 
+# convert forecast into dataframe
+arma012_forecast_df <- as.data.frame(arma012_forecast)
+
 # Error, Loss, MSE and MPE test
 error <- test-arma012_forecast$mean
 loss <- error^2
 mse_arma012 <- mean(error^2) # 25.43779
 mpe_test <- lm(error~1) # 0.2533
 summary(mpe_test)
-checkresiduals(arma012_forecast)
+
+# Combine test, point forecast, error, mse, loss into one dataframe
+final_arma012 <- as.data.frame(cbind(test,arma210_forecast_df$`Point Forecast`, 
+                                     error, mse_arma210, loss))
+
+# Information Efficiency Test
+IET <- lm(error ~ arma012_forecast_df$`Point Forecast`)  
+summary(IET) # t-value = -2.168  p = 0.04309
+
+checkresiduals(arma210_forecast)
 
 # Train vs. Test Accuracy Metrics
 errors_arma012 <- accuracy(arma012_forecast, test) %>%
   as.data.frame()
-
-# Basic Research for IET test - 
-errors_arma012 <- arma012_forecast$residuals  # Residuals on testing fit - helpful for IET testing?
-#IET_test <- lm(error ~ arma012_forecast)
 
 # Plots
 auto_arma012_train_predicted_vs_actual <- autoplot(arma012_forecast) +
@@ -958,7 +1007,7 @@ arma012_interactive
 ```
 
 ##  ARMA(0,1,2) Using First Difference
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 arma002_train_diff <- arima(train_diff, order = c(0,0,2))
 autoplot(arma002_train_diff)
 coeftest(arma002_train_diff)
@@ -971,12 +1020,26 @@ summary(arma002_train_diff) # 1.332218, sigma^2 estimated as 1.773
 arma002_forecast_diff <- forecast(arma002_train_diff, h = length(test_diff)) # predict - n=21
 arma002_forecast_diff
 
+# Turn forecast into dataframe
+arma002_forecast_diff_df <- as.data.frame(arma002_forecast_diff)
+
 # Error, Loss, MSE and MPE test
 error <- test_diff-arma002_forecast_diff$mean
 loss <- error^2
 mse_arma012 <- mean(error^2) # 0.230621
 mpe_test <- lm(error~1) # 0.2533
 summary(mpe_test)
+checkresiduals(arma002_forecast_diff)
+
+# Combine test, point forecast, error, mse, loss into one dataframe
+final_arma002_forecast_diff_df <- as.data.frame(cbind(test_diff,
+                                arma002_forecast_diff_df$`Point Forecast`, error, 
+                                mse_arma012, loss))
+
+# Information Efficiency Test
+IET <- lm(error ~ arma200_forecast_diff_df$`Point Forecast`)  
+summary(IET) # t-value = -1.010  p = .3257 
+
 checkresiduals(arma002_forecast_diff)
 
 # Train vs. Test Accuracy Metrics
@@ -1000,49 +1063,99 @@ arma002_interactive
 ```
 
 # Simple Average 4 Naive Forecast
-```{r}
+```{r, echo=FALSE, warning=FALSE}
 #Model III (Average-4)
-fcast_MA4 <-numeric(21) # estimation sample = 20
+f4 <-numeric(21) # estimation sample = 21
 
 for (i in 1:21){ 
-  fcast_MA4[i]<-(working_hours_ts[181+i]+working_hours_ts[182+i]+
-              working_hours_ts[183+i]+working_hours_ts[184+i])/4 #forecast is the average of the last 4 observations
+  f4[i]<-(working_hours_ts[180+i]+working_hours_ts[181+i]+
+              working_hours_ts[182+i]+working_hours_ts[183+i])/4 #forecast is the average of the last 4 observations
 }
-
-error <- test-fcast_MA4
+error <- test-f4
 loss <- error^2
 mse_MA4 <- mean(error^2) # 0.3365476
 mpe_test_MA4 <- lm(error~1) # 0.5024 
 summary(mpe_test_MA4) 
-checkresiduals(fcast_MA4)
-IET_test <- lm(error ~ fcast_MA4)
+
+IET_test <- lm(error ~ f4)
 summary(IET_test)
-errors_MA4 <- accuracy(fcast_MA4, test) %>%
+errors_MA4 <- accuracy(f4, test) %>%
   as.data.frame()
-#                ME      RMSE       MAE       MPE      MAPE      ACF1 Theil's U
-# Test set 0.502381 0.5801272 0.5095238 0.4487045 0.4549592 0.2833054  1.134857
+#                 ME      RMSE       MAE       MPE      MAPE      
+# Test set 0.8404762 0.9350961 0.8404762 0.7505345 0.7505345 
 
-# Plots
+# Combine test, point forecast, error, mse, loss into one dataframe
+test_df <- as.data.frame(test) # create a df from test
 
+plot(f4, main = "Simple Naive Last 4 Observations Predicted Vs. Actual", 
+     type = "l", col = "red", xlab = "Date", ylab = "Working Hours Index",
+     lwd = 2)
+lines(test_df, col = "black", lwd = 2)
+legend("bottomright",          
+       c("Simple Naive 4", "Actual"),
+       lty = 1,
+       col = 1:2)
 ```
 
+# Graph of All Forecasts
+```{r, echo=FALSE, warning=FALSE}
+######################### PLOT OF ALL GRAPHS ##################################
 
-###### PROFESSOR/SURPLUS
+# Forecast Names
+arma212_forecast
+arma210_forecast
+arma012_forecast
+f4
+# Get Values point forecast values from forecasts
+arma212_predict <- arma212_forecast_df$`Point Forecast`
+arma210_predict <- arma210_forecast_df$`Point Forecast`
+arma012_predict <- arma012_forecast_df$`Point Forecast`
+simple_naive_4 <- f4
 
+# Bind All Forecasts together and Graph
+`All Forecasts July 2021 - MAR 2023` <-cbind(arma212_predict,arma210_predict,
+                                             arma012_predict,simple_naive_4, test)
+ts_plot(`All Forecasts July 2021 - MAR 2023`)
+```
 
-```{r}
+# Combine forecasts
+```{r, echo=FALSE, warning=FALSE}
+# Combine the forecasts using the OLS weighted combination scheme --------------
+# Equal Weighted
+equal_weighted <- .25*arma212_forecast_df$point_forecast + .25*arma210_forecast_df$`Point Forecast` + .25 *arma012_forecast_df$`Point Forecast`+ .25*f4
 
-comb<-lm(g0~(fcast1)+(fcast2)+(fcast3)) 
-summary(comb)
+w1 <- 1 / mse_arma212 # 0.005063324
+w2 <- 1 / mse_arma210 # 0.00558473
+w3 <- 1 / mse_arma012 # 0.5815511
+w4 <- 1 / mse_MA4 # 0.4078008
 
-fcast4<-numeric(21) #generate a vector of 20 zeros
-ferror4<-numeric(21) #generate a vector of 20 zeros
-loss4<-numeric(21) #generate a vector of 20 zeros
+total_weight <- w1 + w2 + w3 + w4 # 1
 
-fcast4 <- comb$fitted.values
-ferror4 <- g0-fcast4
-loss4 <-ferror4^2
+w1 <- w1 / total_weight # 0.005063324
+w2 <- w2 / total_weight # 0.00558473
+w3 <- w3 / total_weight # 0.5815511
+w4 <- w4 / total_weight # 0.4078008
+ 
+#Turn forecasts into data frames and grab point forecasts
+arma212_forecast_df <- as.data.frame(arma212_forecast) %>%
+  select(1) %>%
+  mutate(point_forecast = as.numeric(arma212_forecast_df$point_forecast)) %>%
+  select(point_forecast)
 
-MSE4 <- mean(loss4)
+arma210_forecast_df <- as.data.frame(arma210_forecast) %>%
+  select(1) %>%
+  mutate(point_forecast = as.numeric(arma210_forecast$point_forecast)) %>%
+  select(point_forecast)
 
+arma012_forecast_df <- as.data.frame((arma012_forecast)) %>%
+  select(1) %>%
+  mutate(point_forecast = as.numeric(arma210_forecast$point_forecast)) %>%
+  select(point_forecast)
+
+# Optimal Linear Forecast
+g0<-window(working_hours_ts,start=c(2021,7))
+
+comb<-lm(g0 ~ arma212_forecast_df$point_forecast + arma210_forecast_df$`Point Forecast`+
+           arma012_forecast_df$`Point Forecast` + f4) # forecasts of 4 models
+summary(comb)  # keep an eye out on
 ```
