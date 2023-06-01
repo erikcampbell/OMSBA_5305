@@ -33,6 +33,7 @@ library(lmtest)
 library(lubridate)
 library(TSstudio)
 library(plotly)
+library(DT)
 ```
 
 https://fred.stlouisfed.org/series/AWHAE
@@ -43,37 +44,26 @@ Our data is FRED creating an index (2007=100) of aggregate weekly hours reported
 # Read in Data
 working_hours = read_excel("../data/ch10_Weekly_Hours.xls")
 
-# Added as working_hours1 removed the year and month necessary for some functions to run.
+# Added First Difference and year/month variable to base dataset.
 working_hours <- working_hours %>%
-  mutate(year = year(observation_date),
-         month = month(observation_date))
-
-# Create covid and recession indicators associated with time.
-working_hours1 <- working_hours %>%
   mutate(year = year(observation_date),
          month = month(observation_date),
          first_difference_index = working_hours$hours_worked_index-lag(working_hours$hours_worked_index)
          )
 
 # Create a time series object
-working_hours_ts = ts(working_hours$hours_worked_index, 
+working_hours_ts <- ts(working_hours$hours_worked_index, 
                       frequency = 12,
                       start = c(2006, 3)
                       )
 
 # Create First Difference of Hours Worked Index
 working_hours_diff = diff(working_hours_ts)
-
-# # Checking for Cumulative Variance
-# plot(cvar(working_hours_ts), type = "l")
-# 
-# # Checking Cumulative variance of difference data
-# plot(cvar(working_hours_diff), type = "l") # Looks more stable.
 ```
 
 # EDA Raw Data
 ```{r, echo = FALSE, warning=FALSE}
-plot_work_hours <- ggplot(working_hours1, aes(x = observation_date, 
+plot_work_hours <- ggplot(working_hours, aes(x = observation_date, 
                                              y = hours_worked_index)
                           ) +
   geom_line(size = 1) +
@@ -83,7 +73,7 @@ plot_work_hours <- ggplot(working_hours1, aes(x = observation_date,
   
   geom_rect(aes(xmin=as.POSIXct('2007-12-01'), xmax=as.POSIXct('2008-07-01'), ymin=-Inf, ymax=Inf), 
             linetype = 'dashed',color="light green", fill = 'light green', alpha=.01) +
-  geom_hline(yintercept = mean(working_hours1$hours_worked_index), linetype = "dashed", color = "red") +
+  geom_hline(yintercept = mean(working_hours$hours_worked_index), linetype = "dashed", color = "red") +
    scale_x_datetime(labels = date_format("%Y"),breaks = "1 year") +
   labs(x = 'Date', y = 'Indexed Working Hours',
       title = 'Mar 2006 - MAR 2023 Agg. Weekly Work Hours Index Indexed(2007=100)', 
@@ -97,16 +87,30 @@ plot_work_hours <- ggplot(working_hours1, aes(x = observation_date,
 plot_work_hours
 
 # Interactive plots
-ts_plot(working_hours_ts, slider = TRUE,width = 3,
-        title = "Mar 2006 - MAR 2023 Agg. Weekly Work Hours Index Indexed(2007=100)")
+ggplotly(plot_work_hours, originalData = TRUE, tooltip = "y")
 
-ggplotly(plot_work_hours)
+ts_plot(working_hours_ts, slider = TRUE,
+        title = "Mar 2006 - MAR 2023 Agg. Weekly Work Hours Index Indexed(2007=100)",
+        width = 2, type = "single", Xtitle = "Date", Ytitle = "Index Value - Base 2007 = 100",
+        color = "gold", Xgrid = TRUE, Ygrid = TRUE
+        ) %>%
+    layout(paper_bgcolor = "black",
+         plot_bgcolor = "black",
+         font = list(color = "white"),
+         yaxis = list(linecolor = "white",
+                      zerolinecolor = "white",
+                      gridcolor= "white"),
+         xaxis = list(linecolor = "white",
+                      zerolinecolor = "white",
+                      gridcolor= "white"))
 
 # Heatmap by year and month raw data
-ts_heatmap(working_hours_ts, title = "Mar 2006 - MAR 2023 Agg. Weekly Work Hours Index Indexed(2007=100)")
+ts_heatmap(working_hours_ts, 
+           title = "Mar 2006 - MAR 2023 Agg. Weekly Work Hours Index Indexed(2007=100)")
+
 ```
 
-The dotted-red line is mean.  The black line is index value and a trend line in blue. The green periods are recessions. There is no doubt there an overall upward trend in the data and seasonality must be explored.
+The dotted-red line is mean.  The black line is index value and a trend line in blue. The green periods are recessions. There is no doubt there an overall upward trend in the data and seasonality must be explored. The heat map is interesting to visualize variance index values through the years, especially in capturing economic recessionary time periods.
 
 ## Summary Stats Grouped Year - plot
 ```{r, echo = FALSE, warning= FALSE}
@@ -188,12 +192,14 @@ raw_season <- ts_plot_season(working_hours_ts) +
   ggtitle("Raw Data Seasonality/Cycles by Month All Years, Base 2007 = 100")
 raw_season  
 
-# Interactive graph
-ggplotly(raw_season)
+# Interactive graphs
+ts_seasonal(working_hours_ts, type = "box", 
+            title = "Raw Data Seasonality/Cycles by Month All Years, Base 2007 = 100")
+
 ```
 This box plot is another method to look at potential seasonality by month from 2006-2023. The Q1 and Q4 are slightly higher than Q2 and Q3 as present in the box plot which is indicative of a cycle. First let's address the Trend and maybe the seasonality with taking the first difference. It is clearly evident that taking the first-difference of indexed hours worked is worth exploring.
 
-## Add in First Difference
+## Creat First Difference Time Series & Evaluate Stationarity
 ```{r, echo=FALSE, warning=FALSE}
 # create First Difference of Hours Worked Index
 working_hours_diff = diff(working_hours_ts)
@@ -208,6 +214,29 @@ plot(working_hours_diff, main = 'First Difference of Working Hours', xlab = 'Dat
      ylab = 'First Difference Index Value')
      lines(working_hours_diff, col = 'blue')
      abline(h = mean(working_hours_diff), col = 'red')
+     
+ts_heatmap(working_hours_diff, 
+           title = "Mar 2006 - MAR 2023 First Differenced Agg. Weekly Work Hours Index Indexed(2007=100)")
+
+# Interactive Chart
+
+interactive_raw_first_difference_plot <- cbind(working_hours_ts,working_hours_diff) # aggregate data
+
+ts_plot(interactive_raw_first_difference_plot, width = 3, type = "multiple",
+        title = "Raw Vs. First Difference Agg. Weekly Work Hours Index Indexed(2007=100)"
+        , Xtitle = "Date", Ytitle = "Index Value - Base 2007 = 100",
+        color = "gold", Xgrid = TRUE, Ygrid = TRUE
+        ) %>%
+    layout(paper_bgcolor = "black",
+         plot_bgcolor = "black",
+         font = list(color = "white"),
+         yaxis = list(linecolor = "white",
+                      zerolinecolor = "white",
+                      gridcolor= "white"),
+         xaxis = list(linecolor = "white",
+                      zerolinecolor = "white",
+                      gridcolor= "white")
+          )      
 ```
 
 We can see that using the first difference removes the trend with the COVID outlier remaining. Let's look at a histogram of raw data vs. first difference data. 
@@ -329,6 +358,8 @@ acf_pacf_12_diff
 acf_pacf_combo <- ggarrange(acf_pacf_12_plot, acf_pacf_12_diff, nrow = 1, ncol = 2)
 acf_pacf_combo
 
+#Interactive Chart
+ts_cor(working_hours_diff, seasonal = FALSE, lag.max = 24)
 ```
 
 With ACF and PACF spikes at the second lag suggests that a combined ARMA model of order 2 may be appropriate to consider. The MA(2), AR(2) and ARMA(2,2) models are still intuitive models to further research for modeling as the PACF is alternating through lag periods. 
@@ -431,6 +462,7 @@ print(adj_rsquared)
 ```{r, echo=FALSE, warning=FALSE}
 # Residuals check ACF/PACF
 checkresiduals(model_ARMA212)
+check_res(model_ARMA212)
 
 # Plot residuals in ACF/PACF
 arma212_acf_residuals <- acf(model_ARMA212$residuals, main = "ACF Residuals")
@@ -535,7 +567,7 @@ print(adj_rsquared)
 ```{r, echo=FALSE, warning=FALSE}
 # Residuals check ACF/PACF
 checkresiduals(model_AR210)
-
+check_res(model_AR210) # Interactive
 # Plot residuals in ACF/PACF
 ar2_acf_residuals <- acf(model_AR210$residuals, main = "ACF Residuals")
 ar2_pacf_residuals <- pacf(model_AR210$residuals, main = "PACF Residuals")
@@ -636,7 +668,7 @@ print(adj_rsquared)
 ```{r, echo=FALSE, warning=FALSE}
 # Residuals check ACF/PACF
 checkresiduals(model_MA012)
-
+check_res(model_MA012) # interactive
 # Plot residuals in ACF/PACF
 MA012_acf_residuals <- acf(model_MA012$residuals, main = "ACF Residuals")
 MA012_pacf_residuals <- pacf(model_MA012$residuals, main = "PACF Residuals")
@@ -692,11 +724,27 @@ There are 204 observations and we'll be doing a 90% / 10% split, thus our estima
 length(working_hours_ts)
 train <- window(working_hours_ts,start=c(2006,3),end=c(2021,6)) # 184 observations
 test <- window(working_hours_ts, start=c(2021,7),end=c(2023,3)) # 21 observations
+length(train)
+length(test)
+```
 
-# split of first difference time-series
-length(working_hours_diff) # 204 observations in working_hours_diff time series
-train_diff <- window(working_hours_diff, start=c(2006,4),end=c(2021,7)) # 184 observations for training
-test_diff <- window(working_hours_diff, start=c(2021,8),end=c(2023,3)) # 20 observations for test
+# Professor refit <- Arima(es, model = model_ar7 example)
+```{r}
+arma212_train <- arima(train, order = c(2,1,2))
+#sigma^2 estimated as 1.78, aic = 634.96
+# Coefficients:
+#          ar1     ar2      ma1      ma2
+#       0.1857  0.1082  -0.2218  -0.2726
+# s.e.  0.4234  0.3667   0.4105   0.3649
+
+fcast1 <- forecast(arma212_train, h = 1) # 107.9134
+#         Point Forecast   
+#Jul 2021       107.9134    
+
+e1 <- test-fcast1$mean # 0.8865575
+loss <- e1^2 # 0.7859842
+refit <- Arima(train, model = arma212_train)
+
 ```
 
 # ARMA(2,1,2) Using Base Time-Series
@@ -733,6 +781,7 @@ IET <- lm(error~arma212_forecast_df$`Point Forecast`)
 summary(IET)
 
 checkresiduals(arma212_forecast)
+check_res(arma212_forecast) # interactive chart
 
 # Train vs. Test Accuracy Metrics - Consolidated
 errors_arma212 <- forecast::accuracy(arma212_forecast, test) %>%
@@ -751,62 +800,9 @@ arma212_interactive <- test_forecast(actual = working_hours_ts,
                                      forecast.obj = arma212_forecast,
                                      test = test)
 arma212_interactive
-```
 
-# ARMA(2,1,2) Using First Difference Time-Series
-```{r, echo=FALSE}
-arma212_train_diff <- arima(train_diff, order = c(2,0,2))
-autoplot(arma212_train_diff)
-coeftest(arma212_train_diff)
-summary(arma212_train_diff) # RMSE = 1.329969, sigma^2 estimated as 1.79
-
-# Coefficients:
-#          ar1     ar2      ma1      ma2  intercept
-#       0.1989  0.1007  -0.2371  -0.2649     0.0560
-# s.e.  0.4237  0.3657   0.4115   0.3651     0.0701
-
-arma212_forecast_diff <- forecast(arma212_train_diff, h = length(test_diff))
-arma212_forecast_diff
-
-# convert forecast into dataframe
-arma212_forecast_diff_df <- as.data.frame(arma212_forecast_diff)
-
-# Error, Loss, MSE and MPE test
-error_diff <- test_diff - arma212_forecast_diff$mean
-loss_diff <- error_diff^2
-mse_arma212_diff <- mean(error_diff^2) # 0.2455598
-
-mpe_test_diff <-lm(error_diff~1) # 0.268
-summary(mpe_test_diff) #t value = 2.803 p = 0.0114
-
-# Combine test, point forecast, error, mse, loss into one dataframe
-final_arma212_diff <- as.data.frame(cbind(test_diff,arma212_forecast_diff_df$`Point Forecast`,
-                            error_diff, loss_diff, mse_arma212_diff))
-
-# Information Efficiency Test
-IET <- lm(error_diff ~ arma212_forecast_diff_df$`Point Forecast`)  
-summary(IET) # t-value = -1.630 p = .1205
-
-checkresiduals(arma212_forecast_diff)
-
-# Train vs. Test Accuracy Metrics
-errors_arma212_diff <- forecast::accuracy(arma212_forecast_diff, test_diff) %>%
-  as.data.frame()
-#                        ME      RMSE    MSE           MAE        MPE     MAPE    
-# Training set 0.0008038631 1.3299691   1.768818   0.4516580      NaN      Inf  
-# Test set     0.2679991559 0.4955399   0.2455598  0.4066763 112.2334 112.2334  
-  
-# Residuals between model and Train Data
-errors_arma212_diff <- arma212_forecast_diff$residuals
-
-# Plots
-auto_arma212_diff_predicted_vs_actual <- autoplot(arma212_forecast_diff) + autolayer(test_diff)
-
-# Interactive Plots
-arma212_diff_interactive <- test_forecast(actual = working_hours_diff, 
-                                          forecast.obj = arma212_forecast_diff,
-                                          test = test_diff)
-arma212_diff_interactive
+# create data table for pertinent fit metrics
+datatable(errors_arma212, filter = "top", options = list(pageLength = nrow(errors_arma212), autoWidth = TRUE))
 ```
 
 # ARMA(2,1,0) Using Base Time-Series
@@ -865,63 +861,6 @@ arma210_interactive <- test_forecast(actual = working_hours_ts,
 arma210_interactive
 ```
 
-# ARMA (2,0,0) Using First Difference Time-Series
-```{r, echo=FALSE}
-arma200_train_diff <- arima(train_diff, order = c(2,0,0)) 
-autoplot(arma200_train_diff)
-coeftest(arma200_train_diff)
-summary(arma200_train_diff)# RMSE = 1.333828 , sigma^2 estimated as 1.779
-                                      # Coefficients:
-                                      #           ar1      ar2  intercept
-                                      #       -0.0278  -0.1611     0.0578
-                                      # s.e.   0.0727   0.0724     0.0828        
-
-# Forecast on test sample
-arma200_forecast_diff <-forecast(arma200_train_diff, h= length(test_diff))
-arma200_forecast_diff
-
-# convert forecast into dataframe
-arma200_forecast_diff_df <- as.data.frame(arma200_forecast_diff)
-
-# Error, Loss, MSE and MPE test
-error <- test_diff-arma200_forecast_diff$mean
-loss <- error^2
-mse_arma200_diff <- mean(error^2) # 0.230621
-mpe_test <- lm(error~1) # 0.2533
-summary(mpe_test)# p = 0.014
-
-# Combine test, point forecast, error, mse, loss into one dataframe
-final_arma200_diff <- as.data.frame(cbind(test,arma210_forecast_df$`Point Forecast`, error, 
-                            mse_arma200_diff, loss))
-
-# Information Efficiency Test
-IET <- lm(error ~ arma200_forecast_diff_df$`Point Forecast`)  
-summary(IET) # t-value = -1.010  p = .3257 
-
-checkresiduals(arma200_forecast_diff)
-
-# Train Vs. Test Accuracy Metrics
-errors_arma200_diff <- forecast::accuracy(arma200_forecast_diff, test_diff) %>%
-  as.data.frame()
-#                        ME      RMSE     MSE        MAE      MPE     MAPE      
-# Training set 0.0002714796 1.3338285  1.779098   0.4432776   NaN      Inf 
-# Test set     0.2532795149 0.4802301  0.2306209  0.3934651 109.1354 109.1354 
-
-# Residuals between model and Train Data
-errors_arma200_diff <- arma200_forecast_diff$residuals
-
-# Plots
-auto_arma200_diff_predicted_vs_actual <- autoplot(arma200_forecast_diff) +
-  autolayer(test_diff)
-auto_arma200_diff_predicted_vs_actual
-
-# Interactive Plots
-arma200_diff_interactive <- test_forecast(actual = working_hours_diff, 
-                                          forecast.obj = arma200_forecast_diff,
-                                          test = test_diff)
-arma200_diff_interactive
-```
-
 # ARMA(2,0,0) Dynamic Library & Time Series
 ```{r, echo=FALSE}
 # Fixed Scheme
@@ -946,7 +885,7 @@ for (i in 1:21){
   loss2[i] <-ferror2[i]^2
 }
 
-ar2_dynlm <- as.data.frame(cbind(test,fcast2, ferror2, loss2))
+ar2_dynlm <- cbind(test,fcast2, ferror2, loss2)
 
 RMSE <- sqrt(mean(test-fcast2)^2) # 0.5378386 - RUN : cbind(final_arma210,ar2_dynlm$fcast2, ar2_dynlm$ferror2, ar2_dynlm$loss2)
 MSE2 <- mean(loss2) #  0.4344058 - What?
@@ -1006,62 +945,6 @@ arma012_interactive <- test_forecast(actual = working_hours_ts,
 arma012_interactive
 ```
 
-##  ARMA(0,1,2) Using First Difference
-```{r, echo=FALSE, warning=FALSE}
-arma002_train_diff <- arima(train_diff, order = c(0,0,2))
-autoplot(arma002_train_diff)
-coeftest(arma002_train_diff)
-summary(arma002_train_diff) # 1.332218, sigma^2 estimated as 1.773
-# Coefficients:
-#           ma1      ma2  intercept
-#       -0.0437  -0.1773     0.0572
-# s.e.   0.0730   0.0741     0.0767
-
-arma002_forecast_diff <- forecast(arma002_train_diff, h = length(test_diff)) # predict - n=21
-arma002_forecast_diff
-
-# Turn forecast into dataframe
-arma002_forecast_diff_df <- as.data.frame(arma002_forecast_diff)
-
-# Error, Loss, MSE and MPE test
-error <- test_diff-arma002_forecast_diff$mean
-loss <- error^2
-mse_arma012 <- mean(error^2) # 0.230621
-mpe_test <- lm(error~1) # 0.2533
-summary(mpe_test)
-checkresiduals(arma002_forecast_diff)
-
-# Combine test, point forecast, error, mse, loss into one dataframe
-final_arma002_forecast_diff_df <- as.data.frame(cbind(test_diff,
-                                arma002_forecast_diff_df$`Point Forecast`, error, 
-                                mse_arma012, loss))
-
-# Information Efficiency Test
-IET <- lm(error ~ arma200_forecast_diff_df$`Point Forecast`)  
-summary(IET) # t-value = -1.010  p = .3257 
-
-checkresiduals(arma002_forecast_diff)
-
-# Train vs. Test Accuracy Metrics
-errors_arma002_diff <- accuracy(arma002_forecast_diff, test_diff) %>%
-  as.data.frame()
-
-# Stat test to Validate Results from Out of Sample Evaluation Model Accuracy
-# T testing errors
-errors_arma002 <- arma002_forecast_diff$residuals  # Residuals on testing fit
-
-# Plots
-auto_arma002_train_diff_predicted_vs_actual <- autoplot(arma002_forecast_diff) +
-  autolayer(test_diff)
-auto_arma002_train_diff_predicted_vs_actual
-
-arma002_interactive <- test_forecast(actual = working_hours_diff, 
-                                 forecast.obj = arma002_forecast_diff, 
-                                 test = test_diff)
-arma002_interactive
-
-```
-
 # Simple Average 4 Naive Forecast
 ```{r, echo=FALSE, warning=FALSE}
 #Model III (Average-4)
@@ -1099,13 +982,6 @@ legend("bottomright",
 
 # Graph of All Forecasts
 ```{r, echo=FALSE, warning=FALSE}
-######################### PLOT OF ALL GRAPHS ##################################
-
-# Forecast Names
-arma212_forecast
-arma210_forecast
-arma012_forecast
-f4
 # Get Values point forecast values from forecasts
 arma212_predict <- arma212_forecast_df$`Point Forecast`
 arma210_predict <- arma210_forecast_df$`Point Forecast`
@@ -1116,6 +992,19 @@ simple_naive_4 <- f4
 `All Forecasts July 2021 - MAR 2023` <-cbind(arma212_predict,arma210_predict,
                                              arma012_predict,simple_naive_4, test)
 ts_plot(`All Forecasts July 2021 - MAR 2023`)
+
+
+plot(test_df, main = "Simple Naive Last 4 Observations Predicted Vs. Actual", 
+     type = "l", col = "1", xlab = "Date", ylab = "Working Hours Index",
+     lwd = 2)
+lines(simple_naive_4, col = "2", lwd = 2)
+lines(arma212_predict, col = "3", lwd = 2)
+lines(arma210_predict, col = "4", lwd = 2)
+lines(arma012_predict, col = "5", lwd = 2)
+legend("bottomright",          
+       c("Actual", "Simple Naive 4", "Arma(2,2)", "AR(2)", "MA(2)"),
+       lty = 1,
+       col = 1,2,3,4,5)
 ```
 
 # Combine forecasts
