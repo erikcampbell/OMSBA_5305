@@ -40,7 +40,7 @@ https://fred.stlouisfed.org/series/AWHAE
 Our data is FRED creating an index (2007=100) of aggregate weekly hours reported on a monthly basis. The indexes of aggregate weekly hours are calculated by dividing the current month's aggregate hours by the average of the 12 monthly figures, for the base year (2007).
 
 # Data Load 
-```{r, echo=FALSE, warning=FALSE}
+```{r, warning=FALSE}
 # Read in Data
 working_hours = read_excel("../data/ch10_Weekly_Hours.xls")
 
@@ -48,21 +48,20 @@ working_hours = read_excel("../data/ch10_Weekly_Hours.xls")
 working_hours <- working_hours %>%
   mutate(year = year(observation_date),
          month = month(observation_date),
-         first_difference_index = working_hours$hours_worked_index-lag(working_hours$hours_worked_index)
-         )
+         first_difference_index =
+         working_hours$hours_worked_index-lag(working_hours$hours_worked_index))
 
 # Create a time series object
 working_hours_ts <- ts(working_hours$hours_worked_index, 
                       frequency = 12,
-                      start = c(2006, 3)
-                      )
+                      start = c(2006, 3))
 
 # Create First Difference of Hours Worked Index
 working_hours_diff = diff(working_hours_ts)
 ```
 
 # EDA Raw Data
-```{r, echo = FALSE, warning=FALSE}
+```{r, warning=FALSE}
 plot_work_hours <- ggplot(working_hours, aes(x = observation_date, 
                                              y = hours_worked_index)
                           ) +
@@ -113,7 +112,7 @@ ts_heatmap(working_hours_ts,
 The dotted-red line is mean.  The black line is index value and a trend line in blue. The green periods are recessions. There is no doubt there an overall upward trend in the data and seasonality must be explored. The heat map is interesting to visualize variance index values through the years, especially in capturing economic recessionary time periods.
 
 ## Summary Stats Grouped Year - plot
-```{r, echo = FALSE, warning= FALSE}
+```{r, warning= FALSE}
 stats_year_base <- working_hours %>%
   #select(year, hours_worked_index) %>%
   group_by(year) %>%
@@ -132,7 +131,6 @@ stats_year_base <- working_hours %>%
       axis.text.x = element_text(face = "bold", color="black", size=10),
       panel.background =element_rect('White'),
       legend.position = "none")
-
 stats_year_base
 
 #interactive chart
@@ -141,7 +139,7 @@ ggplotly(stats_year_base)
 This chart looks at the variance in index of hours worked by year from 2006-2023 and can shed some insight about variance of indexed values for working hours.
 
 ## Summary Stats Grouped Month - Plot
-```{r, echo=FALSE, warning= FALSE}
+```{r, warning= FALSE}
 stats_month_base <- working_hours %>%
   #select(year, month, hours_worked_index) %>%
   mutate(month_name = as.factor(month.abb[month])) %>%
@@ -171,7 +169,7 @@ ggplotly(stats_month_base)
 Variance in index of hours worked by month from 2006-2023 provides insight about cycles in working hours.
 
 ## Boxplot by Month to Evaluate Seasonality
-```{r, echo=FALSE, warning=FALSE}
+```{r, warning=FALSE}
 # Boxplot for cycle associations by month
 ts_plot_season <- function(x = x) {
 season <- cycle(x)
@@ -195,12 +193,55 @@ raw_season
 # Interactive graphs
 ts_seasonal(working_hours_ts, type = "box", 
             title = "Raw Data Seasonality/Cycles by Month All Years, Base 2007 = 100")
-
 ```
 This box plot is another method to look at potential seasonality by month from 2006-2023. The Q1 and Q4 are slightly higher than Q2 and Q3 as present in the box plot which is indicative of a cycle. First let's address the Trend and maybe the seasonality with taking the first difference. It is clearly evident that taking the first-difference of indexed hours worked is worth exploring.
 
+# Dickey-Fuller Check
+```{r}
+adf_base <- ur.df(working_hours_ts, type = "none", selectlags = "AIC")
+summary(adf_base)
+```   
+
+The test statistic is higher than all tau values for 1, 5 and 10 percent and p-value is .6714.  Creating first difference of working hours is pragmatic to achieve stationarity.
+
+# Augmented Dickey-Fuller test on Differenced Data to Check for Stationarity.
+```{r, warning=FALSE}
+lag_order <- ndiffs(working_hours_ts, test = "adf")  # Using ADF test for lag order selection
+lag_order
+lag_order_check <- ndiffs(working_hours_diff, test = "adf")  # Using ADF test for lag order selection
+lag_order_check
+```
+Taking the difference of working hours index values is sufficient for stationary time series. Let's double-check and make sure.
+
+```{r}
+#DF test Urca library + adf.test
+df_diff_data = ur.df(working_hours_diff, type = "none", selectlags = "AIC", lags =0)
+summary(df_diff_data)
+```
+
+Dickey-Fuller suggests that we have stationary data now, as the p-value is below 0.01 and test statitic of -14.474 is less than critical value of -2.58 at 99 percent confidence interval, we can reject the null hypothesis that this data is not stationary.
+
+## Phillips Perron Test
+```{r}
+pp.test(working_hours_ts)
+pp.test(working_hours_diff)
+```
+
+Confirms data is stationary.
+
+## KPSS Test
+```{r}
+kpss_base <- ur.kpss(working_hours_ts)
+summary(kpss_base)
+
+kpss_first_difference <- ur.kpss(working_hours_diff)
+summary(kpss_first_difference)
+```
+
+The normal time series without differencing as a t-statistics of 3.2645, which is much higher than critical value at 10 pct significance-level.  When we difference working hours and complete KPSS, our t-statistic is .01174 and lower than critical value at 1 pct.  This confirms Dickey-Fuller that differencing hours worked makes the time series stationary.
+
 ## Creat First Difference Time Series & Evaluate Stationarity
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # create First Difference of Hours Worked Index
 working_hours_diff = diff(working_hours_ts)
 
@@ -219,13 +260,12 @@ ts_heatmap(working_hours_diff,
            title = "Mar 2006 - MAR 2023 First Differenced Agg. Weekly Work Hours Index Indexed(2007=100)")
 
 # Interactive Chart
-
 interactive_raw_first_difference_plot <- cbind(working_hours_ts,working_hours_diff) # aggregate data
 
 ts_plot(interactive_raw_first_difference_plot, width = 3, type = "multiple",
         title = "Raw Vs. First Difference Agg. Weekly Work Hours Index Indexed(2007=100)"
         , Xtitle = "Date", Ytitle = "Index Value - Base 2007 = 100",
-        color = "gold", Xgrid = TRUE, Ygrid = TRUE
+        color = "gold", Xgrid = FALSE, Ygrid = FALSE,
         ) %>%
     layout(paper_bgcolor = "black",
          plot_bgcolor = "black",
@@ -236,13 +276,13 @@ ts_plot(interactive_raw_first_difference_plot, width = 3, type = "multiple",
          xaxis = list(linecolor = "white",
                       zerolinecolor = "white",
                       gridcolor= "white")
-          )      
+         )      
 ```
 
 We can see that using the first difference removes the trend with the COVID outlier remaining. Let's look at a histogram of raw data vs. first difference data. 
 
 ## Histogram data
-```{r, echo = FALSE, warning=FALSE}
+```{r}
 # Histogram - Basic 
 hist_base <- gghistogram(working_hours_ts, fill = "blue", color = 'black', alpha = 0.50,
                     title ='Mar 2006 - MAR 2023', 
@@ -264,26 +304,29 @@ hist_combo <- ggarrange(hist_base, hist_diff, nrow = 2, label.y  = 0.3,
 plot(hist_combo)
 
 # Interactive historgram raw data & first difference
-subplot(ggplotly(hist_base), ggplotly(hist_diff))
+hist_final <- subplot(ggplotly(hist_base), ggplotly(hist_diff))
+hist_final
 ```
 
 Here we can see the distribution differences between the raw data and the first difference data. The first difference data has a more normal distribution indicating that the data is possibly stationary and that we can model on it using the regression assumption necessary to draw inferences. Let's look at boxplot once again and compare raw data vs. first difference of index of working hours.
 
 ## Boxplot of Raw vs. First Difference Data
-```{r,echo=FALSE, warning=FALSE}
+```{r}
 # First Difference of Hours Worked Index and Seasonality Check
-first_diff_season <- ts_plot_season(working_hours_diff) +
-  ggtitle("First Diffrence Data Seasonality/Cycles by Month All Years, Base 2007 = 100")
-first_diff_season
-
-# Combine Raw Data & First Difference
-ggarrange(raw_season, first_diff_season, nrow =2)
+base_boxplot <- ts_seasonal(working_hours_ts, type = "box", 
+                title = "Raw Data Seasonality/Cycles by Month All Years, Base 2007 = 100")
+base_boxplot
+first_diff_boxplot <- ts_seasonal(working_hours_diff, type = "box",
+  title = "Raw & First Difference Seasonality/Cycles by Month All Years, Base 2007 = 100")
+first_diff_boxplot
+comb_box <- subplot(ggplotly(base_boxplot), ggplotly(first_diff_boxplot), nrows = 2, shareX = TRUE)
+comb_box
 ```
 
 The variance has decreased, let's look at seasonality.
 
 ## Scatter plot by Year to Evaluate Seasonality (Raw data vs. First Difference)
-```{r, echo=FALSE}
+```{r}
 ## Seasonality check 
 season_raw <- ggseasonplot(working_hours_ts) +
   ylab("Index Hours") +
@@ -296,7 +339,7 @@ ggplotly(season_raw)
 # First Difference of Hours Worked Index and Seasonality Check
 season_first_diff <- ggseasonplot(working_hours_diff) +
   ylab("Index Hours") +
-  ggtitle("First Difference: Seasonal Plot All Years") +
+  ggtitle("Base Vs.First Difference: Seasonal Plot All Years") +
   theme_classic2()
 
 # Interactive Chart
@@ -310,10 +353,11 @@ combo_diff_sec_diff_scatter
 # Interactive Chart of Seasonality Raw Data & First Difference Hours Worked
 subplot(ggplotly(season_raw), ggplotly(season_first_diff), nrows = 2, shareX = TRUE)
 ```
+
 There are 17 periods for each month with April being lowest aggregated and indexed to 2007 with a value 99.9, and December was highest aggregated and indexed value of 102.9 hours against base 2007. Seasonality plot for all years and months demonstrates the Great Recession and Covid period as illuminated in purple line not like any other of the other lines plotting index of hours worked over all twelve months from 2006-2023.
 
 ## Decompose data to inspect trend, seasonal and random events
-```{r, echo=FALSE}
+```{r}
 decomp_work_hours_ts <- decompose(working_hours_ts, "additive")
 plot(decomp_work_hours_ts)
 
@@ -329,14 +373,13 @@ decomp_work_hours_diff
 The width and height of seasonal cycles over time is predictable and trend is fairly linear with the first difference of hours worked, or seasonal variation is relatively constant over time. Thus, decomposition additively (Yt = Tt + St + Rt) seems appropriate. We'll check if differencing of seasonality required using nsdiffs() function.  
 
 ## Seasonal Differencing Check
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 working_hours_diff %>% nsdiffs()
 ```
-
 We see that seasonal differencing is not required for our time series, let's now check the correlograms.
 
 ## Raw & First Difference Plot the autocorrelation and partial autocorrelations
-```{r, echo= FALSE}
+```{r}
 # Correlogram of raw time series
 acf_12_plot <- ggAcf(working_hours_ts, lag.max = 12,  
              main = "ACF Base Time Series")
@@ -364,44 +407,8 @@ ts_cor(working_hours_diff, seasonal = FALSE, lag.max = 24)
 
 With ACF and PACF spikes at the second lag suggests that a combined ARMA model of order 2 may be appropriate to consider. The MA(2), AR(2) and ARMA(2,2) models are still intuitive models to further research for modeling as the PACF is alternating through lag periods. 
 
-# Augmented Dickey-Fuller test on Differenced Data to Check for Stationarity.
-```{r, echo=FALSE, warning=FALSE}
-lag_order <- ndiffs(working_hours_ts, test = "adf")  # Using ADF test for lag order selection
-lag_order
-lag_order_check <- ndiffs(working_hours_diff, test = "adf")  # Using ADF test for lag order selection
-lag_order_check
-```
-Taking the difference of working hours index values is sufficient for stationary time series.
-
-```{r, echo=FALSE}
-#DF test Urca library + adf.test
-df_diff_data = ur.df(working_hours_diff, type = "none", selectlags = "AIC", lags =0)
-summary(df_diff_data)
-```
-
-Dickey-Fuller suggests that we have stationary data now, as the p-value is below 0.01 and test statitic of -14.474 is less than critical value of -2.58 at 99 percent confidence interval, we can reject the null hypothesis that this data is not stationary.
-
-## Phillips Perron Test
-```{r, echo=FALSE}
-pp.test(working_hours_ts)
-pp.test(working_hours_diff)
-```
-
-Confirms data is stationary.
-
-## KPSS Test
-```{r, echo=FALSE}
-kpss_base <- ur.kpss(working_hours_ts)
-summary(kpss_base)
-
-kpss_first_difference <- ur.kpss(working_hours_diff)
-summary(kpss_first_difference)
-```
-
-The normal time series without differencing as a t-statistics of 3.2645, which is much higher than critical value at 10 pct significance-level.  When we difference working hours and complete KPSS, our t-statistic is .01174 and lower than critical value at 1 pct.  This confirms Dickey-Fuller that differencing hours worked makes the time series stationary.
-
 # Model Fitting and Analysis (2,1,2)
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Fit an ARMA model with order of 2 for both terms with the first difference.
 model_ARMA212 = arima(working_hours_ts, order = c(2, 1, 2))
 summary(model_ARMA212) # RMSE = 1.275151
@@ -426,7 +433,7 @@ arma22_R2 # 0.9618898
 arma22_AR2 # 0.9611276
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Get the residuals from the ARIMA model
 arma_residuals <- residuals(model_ARMA212)
 
@@ -459,7 +466,7 @@ print(rsquared)
 print(adj_rsquared)
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Residuals check ACF/PACF
 checkresiduals(model_ARMA212)
 check_res(model_ARMA212)
@@ -476,7 +483,7 @@ qqnorm(residuals(model_ARMA212), main = 'ARMA(2,1,2) Residuals')
 qqline(model_ARMA212$residuals, col = 'red')
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Q-Test
 r_2_box_test <- Box.test(model_ARMA212$residuals, lag = 5, type = "Ljung")
 r_2_box_test # X-squared = 0.22148, df = 5, p-value = 0.9989
@@ -492,7 +499,7 @@ plot(QTest, main = "ARMA(2,1,2) Q Test", xlab = "lag", ylab = "p-value")
 abline(h = .05, col = "red", lty = 3)
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Forecast 6 months
 fcast_ARMA212 = forecast(model_ARMA212, h=6)
 autoplot(fcast_ARMA212, include = 12, ylab = "Working hours - Base 2007 with 100") 
@@ -509,7 +516,7 @@ So we have a reasonably good fit here with a ARMA(2,2) model the AIC is 689.72 w
 The Ljung-Box statistic is used to see if all underlying population autocorrelations for the error may be zero. Our t-stat was 0.0015358 and p-value of 0.9968 given 5 lags, which is well above 0.05 -a significant threshold for non-zero autocorrelations that rejects null that residuals are independently distributed.
 
 # AR(2)
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Fit an AR model with order of 2 for both terms with the first difference.
 model_AR210 = arima(working_hours_ts, order = c(2, 1, 0))
 summary(model_AR210) # RMSE = 1.27648, MAE = 0.4587968, MPE = 0.08211823, MAPE = 0.4575043 
@@ -525,7 +532,7 @@ if (all(abs(polyroot(c(1, -model_AR210$coef))) < 1)) {
 }  #Not invertible
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r, echo=TRUE, warning=FALSE}
 # R-Squared from Week 6-Chapter 8 practice problem set
 n = length(working_hours_ts)
 ar2_R2 = cor(fitted(model_AR210), working_hours_ts)^2  # 0.9618626
@@ -534,7 +541,7 @@ ar2_R2
 ar2_AR2
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Get the residuals from the ARIMA model
 ar_residuals <- residuals(model_AR210)
 
@@ -564,7 +571,7 @@ print(rsquared)
 print(adj_rsquared)
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Residuals check ACF/PACF
 checkresiduals(model_AR210)
 check_res(model_AR210) # Interactive
@@ -580,7 +587,7 @@ qqnorm(residuals(model_AR210), main = 'ARMA(2,1,0) Residuals')
 qqline(model_AR210$residuals, col = 'red')
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Q-Test
 r_2_box_test <- Box.test(model_AR210$residuals, lag = 3, type = "Ljung")
 r_2_box_test # X-squared = 0.24939, df = 3, p-value = 0.9692
@@ -596,7 +603,7 @@ plot(QTest, main = "AR2 Q Test", xlab = "lag", ylab = "p-value")
 abline(h = .05, col = "red", lty = 3)
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Forecast 6 months
 fcast_AR21 = forecast(model_AR210, h=6)
 autoplot(fcast_AR21, include = 12, ylab = "Working hours - Base 2007 with 100") 
@@ -609,7 +616,7 @@ fcast_AR21_plot
 The AIC is 685.56, both phi parameters are < 1, our adjusted r-squared is 0.9614188 and RMSE is 1.2769. Our Q-test using Ljung was 0.24938500 and p-value looked good at 0.9692 with three lags. The AIC was lower than ARMA 2,1,2 and adjusted r-squared was marginally better.  
 
 # MA(2)
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Fit an MA model with order of 2 for both terms with the first difference.
 model_MA012 = arima(working_hours_ts, order = c(0, 1, 2))
 summary(model_MA012) # RMSE = 1.275151
@@ -626,7 +633,7 @@ if (all(abs(polyroot(c(1, -model_MA012$coef))) < 1)) {
 
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # R-Squared from Week 6-Chapter 8 practice problem set
 n = length(working_hours_ts)
 ma2_R2 = cor(fitted(model_MA012), working_hours_ts)^2  # 0.9618626
@@ -635,7 +642,7 @@ ma2_R2
 ma2_AR2
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Get the residuals from the ARIMA model
 ma_residuals <- residuals(model_MA012)
 
@@ -665,7 +672,7 @@ print(rsquared)
 print(adj_rsquared)
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Residuals check ACF/PACF
 checkresiduals(model_MA012)
 check_res(model_MA012) # interactive
@@ -681,7 +688,7 @@ qqnorm(residuals(model_MA012), main = 'ARMA(2,1,0) Residuals')
 qqline(model_MA012$residuals, col = 'red')
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Q-Test
 r_2_box_test <- Box.test(model_MA012$residuals, lag = 3, type = "Ljung")
 r_2_box_test # X-squared = 0.22148, df = 5, p-value = 0.9989 - No serial Correlations/residuals independently distributed
@@ -697,7 +704,7 @@ plot(QTest, main = "MA2 Q Test", xlab = "lag", ylab = "p-value")
 abline(h = .05, col = "red", lty = 3)
 ```
 
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Forecast 6 months
 fcast_MA012 <- forecast(model_MA012, h=6)
 autoplot(fcast_MA012, include = 12, ylab = "Working hours - Base 2007 with 100")
@@ -719,7 +726,7 @@ Our preferred model is ________ because __________________________________.
 There are 204 observations and we'll be doing a 90% / 10% split, thus our estimation sample with have 184 observations and our prediction sample will have 21 observations. We'll be applying a fixed scheme that will produce only one estimate and does not allow for parameter updating.
 
 ## Data Split into Train & Test Samples
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # split of time-series base time-series
 length(working_hours_ts)
 train <- window(working_hours_ts,start=c(2006,3),end=c(2021,6)) # 184 observations
@@ -736,19 +743,28 @@ arma212_train <- arima(train, order = c(2,1,2))
 #          ar1     ar2      ma1      ma2
 #       0.1857  0.1082  -0.2218  -0.2726
 # s.e.  0.4234  0.3667   0.4105   0.3649
+fcast1 <- forecast(arma212_train, h = 1)
+#          Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
+# Jul 2021       107.9134 106.2035 109.6234 105.2983 110.5286
 
-fcast1 <- forecast(arma212_train, h = 1) # 107.9134
-#         Point Forecast   
-#Jul 2021       107.9134    
+accuracy(fcast1)
+#                      ME     RMSE       MAE        MPE      MAPE      MASE         ACF1
+# Training set 0.07429913 1.330678 0.4737119 0.06076164 0.4778019 0.1723317 -0.003449782
 
 e1 <- test-fcast1$mean # 0.8865575
 loss <- e1^2 # 0.7859842
 refit <- Arima(train, model = arma212_train)
 
+# i. Estimate a 21 step-ahead forecast
+fcast1 <- numeric(21)
+fcast1 <-forecast(arma212_train, h = 21)
+e1 <- test-fcast1$mean
+MSE1 <- mean(e1^2)
+
 ```
 
 # ARMA(2,1,2) Using Base Time-Series
-```{r, echo = FALSE}
+```{r}
 arma212_train <- arima(train, order = c(2,1,2))
 autoplot(arma212_train)
 coeftest(arma212_train)
@@ -763,36 +779,46 @@ arma212_forecast <- forecast(arma212_train, h = length(test))
 accuracy(arma212_forecast)
 
 # convert forecast into dataframe
-arma212_forecast_df <- as.data.frame(arma212_forecast)
+arma212_forecast_df <- round(as.data.frame(arma212_forecast), digits = 3)
 
 # Error, Loss, MSE and MPE test
-error <- test - arma212_forecast$mean
-loss <- error^2
+error <- round(test - arma212_forecast$mean,digits = 3)
+loss <- round(error^2, digits = 3)
 mse_arma212 <- mean(error^2) # 27.10559
-
 mpe_test <-lm(error~1) # 4.83, t = 11.11, p-value 5.25e-10
 summary(mpe_test)
 
 # Combine test, point forecast, error, mse, loss into one dataframe
-final_arma212 <- as.data.frame(cbind(test,arma212_forecast_df$`Point Forecast`, error, loss, mse_arma212))
+final_arma212 <- as.data.frame(cbind(test,arma212_forecast_df$`Point Forecast`,
+                                     error, loss))
+final_arma212 <- datatable(final_arma212, filter = "top", 
+          options = list(pageLength = nrow(test), autoWidth = TRUE),
+          caption = "ARMA(2,1,2) Forecast, Error & Loss")
+final_arma212
 
 # Information Efficiency Test
 IET <- lm(error~arma212_forecast_df$`Point Forecast`)  
 summary(IET)
 
-checkresiduals(arma212_forecast)
-check_res(arma212_forecast) # interactive chart
+# Create data table for pertinent fit metrics
+fit_arma212_metrics <- round(forecast::accuracy(arma212_forecast, test), digits = 5)
+fit_arma212_metrics <- datatable(fit_arma212_metrics,
+            options = list(pageLength = nrow(test), autoWidth = TRUE),
+            caption = "ARMA(2,1,2) Metrics In-Sample & Out-of-Sample")
+fit_arma212_metrics
 
-# Train vs. Test Accuracy Metrics - Consolidated
-errors_arma212 <- forecast::accuracy(arma212_forecast, test) %>%
-  as.data.frame() 
-errors_arma212
 #                      ME     RMSE    MSE           MAE        MPE      MAPE    
 # Training set 0.07429913 1.330678  1.770704   0.4737119 0.06076164 0.4778019  
 # Test set     4.82960956 5.206303  27.10559   4.8296096 4.26126071 4.2612607    
 
+# Residuals between model and Train Data
+errors_arma212_res <- arma212_forecast$residuals
+
 # Plots
-auto_arma212_predicted_vs_actual <- autoplot(arma212_forecast) + autolayer(test)
+auto_arma212_predicted_vs_actual <- autoplot(arma212_forecast, include = 12, main = 
+                                "Forecasts from Arima(2,1,2) on Test Data", xlab = "Time",
+                                ylab = "Index Working Hours") + autolayer(test,
+                                color = "black", xlab = "Time", ylab = "Index Working Hours")
 auto_arma212_predicted_vs_actual
 
 # Interactive Plots
@@ -800,13 +826,11 @@ arma212_interactive <- test_forecast(actual = working_hours_ts,
                                      forecast.obj = arma212_forecast,
                                      test = test)
 arma212_interactive
-
-# create data table for pertinent fit metrics
-datatable(errors_arma212, filter = "top", options = list(pageLength = nrow(errors_arma212), autoWidth = TRUE))
+#check_res(arma212_forecast)
 ```
 
 # ARMA(2,1,0) Using Base Time-Series
-```{r, echo=FALSE}
+```{r}
 arma210_train <- arima(train, order = c(2,1,0)) 
 autoplot(arma210_train)
 coeftest(arma210_train)
@@ -820,12 +844,12 @@ summary(arma210_train) # RMSE = 1.334404, sigma^2 estimated as 1.79
 arma210_forecast <-forecast(arma210_train, h= length(test))
 arma210_forecast
 
-# convert forecast into dataframe
-arma210_forecast_df <- as.data.frame(arma210_forecast)
+# convert forecast into data frame
+arma210_forecast_df <- round(as.data.frame(arma210_forecast), digits = 3)
 
 # Error, Loss, MSE and MPE test
-error <- test-arma210_forecast$mean
-loss <- error^2
+error <- round(test-arma210_forecast$mean, digits = 3)
+loss <- round(error^2, digits = 3)
 mse_arma210 <- mean(error^2) # 24.57494
 mpe_test <- lm(error~1) # 4.571
 summary(mpe_test)
@@ -833,36 +857,47 @@ summary(mpe_test)
 # Combine test, point forecast, error, mse, loss into one dataframe
 final_arma210 <- as.data.frame(cbind(test,arma210_forecast_df$`Point Forecast`, 
                                      error, loss))
+final_arma210 <-datatable(final_arma210, filter = "top", 
+          options = list(pageLength = nrow(test), autoWidth = TRUE),
+          caption = "ARMA(2,1,0) Forecast, Error & Loss")
+final_arma210
 
 # Information Efficiency Test
 IET <- lm(error ~ arma210_forecast_df$`Point Forecast`)  
 summary(IET) # t-value = -0.237  p = .815 
 
-checkresiduals(arma210_forecast)
-
-# Train vs. Test Accuracy Metrics
-errors_arma210 <- forecast::accuracy(arma210_forecast, test) %>%
-  as.data.frame()
+# Create data table for pertinent fit metrics
+fit_arma210_metrics <- round(forecast::accuracy(arma210_forecast, test), digits = 5)
+fit_arma210_metrics <-  datatable(fit_arma210_metrics,
+          options = list(pageLength = nrow(fit_arma210_metrics), autoWidth = TRUE),
+          caption = "ARMA(2,1,0) Metrics In-Sample & Out-of-Sample")
+fit_arma210_metrics
 #                      ME     RMSE    MSE           MAE        MPE      MAPE     
 # Training set 0.06505855 1.334404  1.780634    0.4638089 0.05273247 0.4675245 
 # Test set     4.57096340 4.957312  24.57494    4.5709634 4.03185528 4.0318553 
 
 # Residuals between model and Train Data
-errors_arma210 <- arma210_forecast$residuals
+errors_arma210_res <- arma210_forecast$residuals
 
 # Plots
-auto_arma210_predicted_vs_actual <- autoplot(arma210_forecast) + autolayer(test)
+auto_arma210_predicted_vs_actual <- autoplot(arma210_forecast, include = 12, 
+                        main = "Forecasts from Arima(2,1,0) on Test Data", 
+                        xlab = "Time", ylab = "Index Working Hours") + 
+                        autolayer(test, color = "black", xlab = "Time", 
+                                  ylab = "Index Working Hours")
 auto_arma210_predicted_vs_actual
 
 # Interactive Plots
 arma210_interactive <- test_forecast(actual = working_hours_ts, 
                                      forecast.obj = arma210_forecast,
+                                     train = train,
                                      test = test)
 arma210_interactive
+check_res(arma210_forecast)
 ```
 
 # ARMA(2,0,0) Dynamic Library & Time Series
-```{r, echo=FALSE}
+```{r}
 # Fixed Scheme
 fcast2_dynlm<-numeric(21) #generate a vector of 21 
 model<-dynlm(working_hours_ts ~ stats::lag(working_hours_ts,-1) + 
@@ -885,20 +920,28 @@ for (i in 1:21){
   loss2[i] <-ferror2[i]^2
 }
 
-ar2_dynlm <- cbind(test,fcast2, ferror2, loss2)
+ar2_dynlm <- round(cbind(test,fcast2_dynlm, ferror2, loss2), digits = 4)
+ar2_dynlm <- datatable(ar2_dynlm, caption = "DYNLM ARMA(2,1,0) Metrics In-Sample & Out-of-Sample")
+ar2_dynlm
 
-RMSE <- sqrt(mean(test-fcast2)^2) # 0.5378386 - RUN : cbind(final_arma210,ar2_dynlm$fcast2, ar2_dynlm$ferror2, ar2_dynlm$loss2)
+RMSE <- sqrt(mean(test-fcast2_dynlm)^2) # 0.5378386 - RUN : cbind(final_arma210,ar2_dynlm$fcast2, ar2_dynlm$ferror2, ar2_dynlm$loss2)
 MSE2 <- mean(loss2) #  0.4344058 - What?
 mpetest <- lm(ferror2 ~ 1)
 summary(mpetest)
 
-IETest <- lm(ferror2 ~ fcast2)
+# Create data table for pertinent fit metrics
+fit_DYNLM_arma210_metrics <- round(cbind(test,fcast2_dynlm,ferror2, loss2), digits = 4)
+fit_DYNLM_arma210_metrics <- datatable(fit_DYNLM_arma210_metrics,
+                             caption = "DYNLM - ARMA(2,1,0) Metrics In-Sample & Out-of-Sample")
+fit_DYNLM_arma210_metrics
+
+IETest <- lm(ferror2 ~ fcast2_dynlm)
 summary(IETest) # t = -1.648 p = .1159  
-checkresiduals(fcast2)
+checkresiduals(fcast2_dynlm)
 ```
 
 ## ARMA(0,1,2) Using Base Time-Series
-```{r, echo=FALSE}
+```{r}
 arma012_train <- arima(train, order = c(0,1,2))
 autoplot(arma012_train)
 coeftest(arma012_train)
@@ -912,41 +955,55 @@ arma012_forecast <- forecast(arma012_train, h = length(test)) # predict - n=21
 arma012_forecast
 
 # convert forecast into dataframe
-arma012_forecast_df <- as.data.frame(arma012_forecast)
+arma012_forecast_df <- round(as.data.frame(arma012_forecast), digits = 3)
 
 # Error, Loss, MSE and MPE test
-error <- test-arma012_forecast$mean
-loss <- error^2
+error <- round(test-arma012_forecast$mean, digits = 3)
+loss <- round(error^2, digits =3)
 mse_arma012 <- mean(error^2) # 25.43779
 mpe_test <- lm(error~1) # 0.2533
 summary(mpe_test)
 
-# Combine test, point forecast, error, mse, loss into one dataframe
-final_arma012 <- as.data.frame(cbind(test,arma210_forecast_df$`Point Forecast`, 
-                                     error, mse_arma210, loss))
+# Combine test, point forecast, error, mse, loss into one data frame
+final_arma012 <- as.data.frame(cbind(test, arma012_forecast$`Point Forecast`,
+                                     error, loss))
+final_arma012 <- datatable(final_arma012, filter = "top",
+            options = list(pageLength = nrow(test), autoWidth = TRUE),
+            caption = "ARMA(0,1,2) Forecast, Error & Loss")
+final_arma012
 
 # Information Efficiency Test
 IET <- lm(error ~ arma012_forecast_df$`Point Forecast`)  
 summary(IET) # t-value = -2.168  p = 0.04309
 
-checkresiduals(arma210_forecast)
-
-# Train vs. Test Accuracy Metrics
-errors_arma012 <- accuracy(arma012_forecast, test) %>%
-  as.data.frame()
+# Create data table for pertinent fit metrics
+fit_arma012_metrics <- round(as.data.frame(forecast::accuracy(arma012_forecast, test)), digits = 5)
+fit_arma012_metrics <- datatable(fit_arma012_metrics, 
+          options = list(pageLength = nrow(fit_arma012_metrics), autoWidth = TRUE),
+                    caption = "ARMA(0,1,2) Metrics In-Sample & Out-of-Sample")
+fit_arma012_metrics
 
 # Plots
-auto_arma012_train_predicted_vs_actual <- autoplot(arma012_forecast) +
-  autolayer(test)
+auto_arma012_train_predicted_vs_actual <- autoplot(arma012_forecast, include = 12,
+                         main = "Forecasts from Arima(0,1,2) on Test Data", 
+                         xlab = "Time", ylab = "Index Working Hours") + 
+                        autolayer(test, color = "black", xlab = "Time", 
+                                  ylab = "Index Working Hours")                                       
 auto_arma012_train_predicted_vs_actual
 
+# Interactive Charts
 arma012_interactive <- test_forecast(actual = working_hours_ts, 
                                  forecast.obj = arma012_forecast, test = test)
 arma012_interactive
+checkresiduals(arma210_forecast)
+check_res(arma210_forecast)
 ```
 
 # Simple Average 4 Naive Forecast
-```{r, echo=FALSE, warning=FALSE}
+```{r}
+# last 4 observations
+last4 <- ts(sapply(train,tail,4)) # grab last 4
+
 #Model III (Average-4)
 f4 <-numeric(21) # estimation sample = 21
 
@@ -954,16 +1011,23 @@ for (i in 1:21){
   f4[i]<-(working_hours_ts[180+i]+working_hours_ts[181+i]+
               working_hours_ts[182+i]+working_hours_ts[183+i])/4 #forecast is the average of the last 4 observations
 }
-error <- test-f4
-loss <- error^2
+
+error <- round(test-f4, digits = 3)
+loss <- round(error^2, digits = 3)
 mse_MA4 <- mean(error^2) # 0.3365476
 mpe_test_MA4 <- lm(error~1) # 0.5024 
 summary(mpe_test_MA4) 
 
+# Combine test, point forecast, error, loss into one dataframe
+final_f4 <- datatable(cbind(test, f4, error, loss), 
+                      caption = "Simple Average 4 Naive Forecast: July 2021 - March 2023")
+final_f4 
 IET_test <- lm(error ~ f4)
 summary(IET_test)
-errors_MA4 <- accuracy(f4, test) %>%
-  as.data.frame()
+
+# Create data table for pertinent fit metrics
+fit_MA4_metrics <- datatable(round(accuracy(f4, test), digits = 5))
+fit_MA4_metrics
 #                 ME      RMSE       MAE       MPE      MAPE      
 # Test set 0.8404762 0.9350961 0.8404762 0.7505345 0.7505345 
 
@@ -981,8 +1045,8 @@ legend("bottomright",
 ```
 
 # Graph of All Forecasts
-```{r, echo=FALSE, warning=FALSE}
-# Get Values point forecast values from forecasts
+```{r}
+#Get Values point forecast values from forecasts
 arma212_predict <- arma212_forecast_df$`Point Forecast`
 arma210_predict <- arma210_forecast_df$`Point Forecast`
 arma012_predict <- arma012_forecast_df$`Point Forecast`
@@ -991,60 +1055,72 @@ simple_naive_4 <- f4
 # Bind All Forecasts together and Graph
 `All Forecasts July 2021 - MAR 2023` <-cbind(arma212_predict,arma210_predict,
                                              arma012_predict,simple_naive_4, test)
-ts_plot(`All Forecasts July 2021 - MAR 2023`)
-
-
-plot(test_df, main = "Simple Naive Last 4 Observations Predicted Vs. Actual", 
-     type = "l", col = "1", xlab = "Date", ylab = "Working Hours Index",
-     lwd = 2)
-lines(simple_naive_4, col = "2", lwd = 2)
-lines(arma212_predict, col = "3", lwd = 2)
-lines(arma210_predict, col = "4", lwd = 2)
-lines(arma012_predict, col = "5", lwd = 2)
-legend("bottomright",          
-       c("Actual", "Simple Naive 4", "Arma(2,2)", "AR(2)", "MA(2)"),
-       lty = 1,
-       col = 1,2,3,4,5)
+plot_all_forecasts <- ts_plot(`All Forecasts July 2021 - MAR 2023`, width = 3, 
+                              slider = FALSE, type = "single",
+                              Ytitle = "Hours Worked Index, Base = 100 (2007)",
+                              Xgrid = TRUE, Ygrid = TRUE,
+                              title = "All Forecasts July 2021 = March 2023")
+plot_all_forecasts
 ```
 
 # Combine forecasts
-```{r, echo=FALSE, warning=FALSE}
+```{r}
 # Combine the forecasts using the OLS weighted combination scheme --------------
-# Equal Weighted
-equal_weighted <- .25*arma212_forecast_df$point_forecast + .25*arma210_forecast_df$`Point Forecast` + .25 *arma012_forecast_df$`Point Forecast`+ .25*f4
+# 4 models, so n=4 and each weight is 1/n = 0.25
 
-w1 <- 1 / mse_arma212 # 0.005063324
-w2 <- 1 / mse_arma210 # 0.00558473
-w3 <- 1 / mse_arma012 # 0.5815511
-w4 <- 1 / mse_MA4 # 0.4078008
+ew_comb_fcast21 <- numeric(21)
 
-total_weight <- w1 + w2 + w3 + w4 # 1
+for (i in 1:21) {
+  ew_comb_fcast21[i] <- 0.25 * arma212_forecast$fitted[i] + 0.25 * arma210_forecast$fitted[i] +
+                        0.25 * arma012_forecast$fitted[i] + 0.25 * f4[i]
+#  ew_comb_e21 <- working_hours_ts[185+i] - ew_comb_fcast21[i]
+#  ew_comb_loss[i] <- ew_comb_e21[i]^2
+}
 
-w1 <- w1 / total_weight # 0.005063324
-w2 <- w2 / total_weight # 0.00558473
-w3 <- w3 / total_weight # 0.5815511
-w4 <- w4 / total_weight # 0.4078008
- 
-#Turn forecasts into data frames and grab point forecasts
-arma212_forecast_df <- as.data.frame(arma212_forecast) %>%
-  select(1) %>%
-  mutate(point_forecast = as.numeric(arma212_forecast_df$point_forecast)) %>%
-  select(point_forecast)
+# Error, Loss, MSE and MPE test
+error <- round(test-ew_comb_fcast21, digits = 3)
+loss <- round(error^2, digits = 3)
+mse_combo <- mean(error^2)
+mpe_test_combo <- lm(error~1)
+summary(mpe_test_combo)
 
-arma210_forecast_df <- as.data.frame(arma210_forecast) %>%
-  select(1) %>%
-  mutate(point_forecast = as.numeric(arma210_forecast$point_forecast)) %>%
-  select(point_forecast)
+# Combine test, equal weight forecast, error, loss into table
+ew_combo_fcast21_df <- datatable(round(cbind(test,ew_comb_fcast21, error, loss), digits = 3),
+  caption = "July 2021-March 2023: Equal Weight ARMA(2,2), AR(2), MA(2), Simple Naive Last 4 observations")
+ew_combo_fcast21_df
 
-arma012_forecast_df <- as.data.frame((arma012_forecast)) %>%
-  select(1) %>%
-  mutate(point_forecast = as.numeric(arma210_forecast$point_forecast)) %>%
-  select(point_forecast)
+# Generate Inverse MSE Combined forecast
+imse_comb_fcast21 <- numeric(21)
 
-# Optimal Linear Forecast
-g0<-window(working_hours_ts,start=c(2021,7))
+imse_arma212 <- (1/mse_arma212) / ((1/mse_arma212) + (1/mse_arma210) + (1/mse_arma012) + (1/mse_MA4))
+imse_arma210 <- (1/mse_arma210) / ((1/mse_arma210) + (1/mse_arma212) + (1/mse_arma012) + (1/mse_MA4))
+imse_arma012 <- (1/mse_arma012) / ((1/mse_arma012) + (1/mse_arma212) + (1/mse_arma210) + (1/mse_MA4))
+imse_sma4 <- (1/mse_MA4) / ((1/mse_MA4) + (1/mse_arma212) + (1/mse_arma210) + (1/mse_arma012))
 
-comb<-lm(g0 ~ arma212_forecast_df$point_forecast + arma210_forecast_df$`Point Forecast`+
-           arma012_forecast_df$`Point Forecast` + f4) # forecasts of 4 models
-summary(comb)  # keep an eye out on
+for (i in 1:21){
+     imse_comb_fcast21[i] <- (imse_arma212 * arma212_forecast$fitted[i] + 
+                                  imse_arma210 * arma210_forecast$fitted[i] +
+                                  imse_arma012 * arma012_forecast$fitted[i] +
+                                  imse_sma4 * f4[i])
+}
+
+# Error, Loss, MSE and MPE test
+error <- round(test-imse_comb_fcast21, digits = 3)
+loss <- round(error^2, digits = 3)
+imse_combo <- mean(error^2)
+mpe_test_combo_inverse <- lm(error~1)
+summary(mpe_test_combo_inverse)
+
+imse_comb_mse4 <- mean(error^2)
+# Combine test, equal weight forecast, error, loss into table
+imse_comb_final <- datatable(round(cbind(test,imse_comb_fcast21, error, loss),digits = 3),
+                caption = "Inverse MSE Combined Forecast for July 2021 - Mar 2023")
+imse_comb_final
+    
+# # Optimal Linear Forecast
+# g0<-window(working_hours_ts,start=c(2021,7))
+# 
+# comb<-lm(g0 ~ arma212_forecast_df$`point_forecast` + arma210_forecast_df$`Point Forecast`+
+#            arma012_forecast_df$`Point Forecast` + f4) # forecasts of 4 models
+# summary(comb)  # keep an eye out on
 ```
