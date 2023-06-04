@@ -12,6 +12,16 @@ editor_options:
   chunk_output_type: inline
 ---
 
+TO DO:
+1. Finish OLS-weighted optimal forecast - emulate talbe 9.8 on text pp.245
+2. Check IET Test t-values
+3. Evaluate Homoskedasticity/Heteroscedasticity of regressions?
+
+# Evaluating Heteroscedasticity
+plot(arma22_forecast, resid(arma22fcast$residuals), xlab='Fitted Values', ylab='Residuals')
+abline(0,0)
+
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
@@ -58,6 +68,10 @@ working_hours_ts <- ts(working_hours$hours_worked_index,
 
 # Create First Difference of Hours Worked Index
 working_hours_diff = diff(working_hours_ts)
+#######################  CONSIDER MOVING BELOW TO OTHER ADF/KPSS DATA #########
+
+# Create Log Difference of Hours Worked Index
+working_hours_log = log(working_hours_ts)
 ```
 
 # EDA Raw Data
@@ -85,7 +99,7 @@ plot_work_hours <- ggplot(working_hours, aes(x = observation_date,
       legend.position = "none")
 plot_work_hours
 
-# Interactive plots
+# Interactive Plots
 ggplotly(plot_work_hours, originalData = TRUE, tooltip = "y")
 
 ts_plot(working_hours_ts, slider = TRUE,
@@ -103,8 +117,12 @@ ts_plot(working_hours_ts, slider = TRUE,
                       zerolinecolor = "white",
                       gridcolor= "white"))
 
-# Heatmap by year and month raw data
+# Heatmap: Base Time Series by year and month raw data
 ts_heatmap(working_hours_ts, 
+           title = "Mar 2006 - MAR 2023 Agg. Weekly Work Hours Index Indexed(2007=100)")
+
+# Heatmap: Log Working Hours Time Series By Year and Month
+ts_heatmap(working_hours_log, 
            title = "Mar 2006 - MAR 2023 Agg. Weekly Work Hours Index Indexed(2007=100)")
 
 ```
@@ -196,32 +214,55 @@ ts_seasonal(working_hours_ts, type = "box",
 ```
 This box plot is another method to look at potential seasonality by month from 2006-2023. The Q1 and Q4 are slightly higher than Q2 and Q3 as present in the box plot which is indicative of a cycle. First let's address the Trend and maybe the seasonality with taking the first difference. It is clearly evident that taking the first-difference of indexed hours worked is worth exploring.
 
-# Dickey-Fuller Check
+# Dickey-Fuller Check For Stationary Time Series
 ```{r}
 adf_base <- ur.df(working_hours_ts, type = "none", selectlags = "AIC")
 summary(adf_base)
 ```   
 
-The test statistic is higher than all tau values for 1, 5 and 10 percent and p-value is .6714.  Creating first difference of working hours is pragmatic to achieve stationarity.
+The test statistic is higher than all tau values for 1, 5 and 10 percent and p-value is .6714. Transforming working hours index with the first difference of working hours is pragmatic to achieve stationarity. The team decided to evaluate log of working hours and test for stationarity.
 
-# Augmented Dickey-Fuller test on Differenced Data to Check for Stationarity.
+## ADF/stationarity test of Log of Working Hours index
+```{r}
+df_log_data = ur.df(working_hours_log, type = "none", selectlags = "AIC", lags = 0)
+summary(df_log_data) # t-stat = 0.8554 and tau1 at 10pct = -1.62, p-value = 0.3933,
+# thus log_work_hours not stationary and first difference required.
+```
+
+t-stat = 0.8554 and tau1 at 10pct = -1.62, p-value = 0.3933, thus log_work_hours not stationary and first difference required.
+
+## Test Number of Differences to Log of Working Hours Required to Get Stationary Data
+```{r}
+lag_order_log <-ndiffs(working_hours_log, type = "trend", test = "adf")
+lag_order_log # 1
+```
+
+## ADF/Stationarity Test AFTER Executing First Difference of Log Working Hours Transformation
+```{r}
+working_hours_log_diff <- diff(working_hours_log) # create time-series
+df_diff_log_data = ur.df(working_hours_log_diff, type = "none", selectlags = "AIC",lags = 0)
+summary(df_diff_log_data) 
+```
+
+t-stat is -14.7033, which is < tau1 at -2.58 and p-value = 2.2e-16 and AR^2 =0.5146
+
+## ADF/Stationarity Test AFTER First Difference of Working Hours Transformation Executed
+```{r}
+df_diff_data = ur.df(working_hours_diff, type = "none", selectlags = "AIC", lags =0)
+summary(df_diff_data)
+```
+
+t-stat is -14.474, which is < tau1 at 1pct-level, a p-value = 2.2e-16 and AR^2 = 0.5067 (only 0.0079 less than diff(log(working_hours_ts)). There is only a marginal benefit of taking log of working hours and then transforming the difference of log working hours. Dickey-Fuller with a transformation on the first difference of working hours suggests that we have stationary data now, as the p-value is below 0.01 and test statitic of -14.474 is less than critical value of -2.58 at 99 percent confidence interval, we can reject the null hypothesis that this data is not stationary. Taking the working hours index and transforming it using first difference is sufficient for stationary time series and we chose to not use the log of working hours and then difference the log. Let's double-check stationarity of our time series with Philips Perron and KPSS tests.
+
+## ndiffs test on Differenced Data to Check for Stationarity.
 ```{r, warning=FALSE}
 lag_order <- ndiffs(working_hours_ts, test = "adf")  # Using ADF test for lag order selection
 lag_order
 lag_order_check <- ndiffs(working_hours_diff, test = "adf")  # Using ADF test for lag order selection
 lag_order_check
 ```
-Taking the difference of working hours index values is sufficient for stationary time series. Let's double-check and make sure.
 
-```{r}
-#DF test Urca library + adf.test
-df_diff_data = ur.df(working_hours_diff, type = "none", selectlags = "AIC", lags =0)
-summary(df_diff_data)
-```
-
-Dickey-Fuller suggests that we have stationary data now, as the p-value is below 0.01 and test statitic of -14.474 is less than critical value of -2.58 at 99 percent confidence interval, we can reject the null hypothesis that this data is not stationary.
-
-## Phillips Perron Test
+## Phillips Perron Test Stationary Time-Series
 ```{r}
 pp.test(working_hours_ts)
 pp.test(working_hours_diff)
@@ -240,7 +281,7 @@ summary(kpss_first_difference)
 
 The normal time series without differencing as a t-statistics of 3.2645, which is much higher than critical value at 10 pct significance-level.  When we difference working hours and complete KPSS, our t-statistic is .01174 and lower than critical value at 1 pct.  This confirms Dickey-Fuller that differencing hours worked makes the time series stationary.
 
-## Creat First Difference Time Series & Evaluate Stationarity
+## Creat First Difference Time Series, Conduct EDA and Evaluate Stationarity
 ```{r}
 # create First Difference of Hours Worked Index
 working_hours_diff = diff(working_hours_ts)
@@ -260,7 +301,7 @@ ts_heatmap(working_hours_diff,
            title = "Mar 2006 - MAR 2023 First Differenced Agg. Weekly Work Hours Index Indexed(2007=100)")
 
 # Interactive Chart
-interactive_raw_first_difference_plot <- cbind(working_hours_ts,working_hours_diff) # aggregate data
+interactive_raw_first_difference_plot <- cbind(working_hours_ts,working_hours_diff)
 
 ts_plot(interactive_raw_first_difference_plot, width = 3, type = "multiple",
         title = "Raw Vs. First Difference Agg. Weekly Work Hours Index Indexed(2007=100)"
@@ -386,7 +427,7 @@ acf_12_plot <- ggAcf(working_hours_ts, lag.max = 12,
 pacf_12_plot <- ggPacf(working_hours_ts, lag.max = 12,
                main = "PACF Base Time Series")
 
-acf_pacf_12_plot <- ggarrange(acf_12_plot, pacf_12_plot, nrow = 2) # lag = 12
+acf_pacf_12_plot <- ggarrange(acf_12_plot, pacf_12_plot, nrow = 2) 
 acf_pacf_12_plot
 
 # Correlogram of first difference index of hours worked
@@ -395,7 +436,7 @@ acf_12_diff <- ggAcf(working_hours_diff, lag.max = 12,
 pacf_12_diff <- ggPacf(working_hours_diff, lag.max = 12,
                main = "First Difference PACF - Lag = 12")
 
-acf_pacf_12_diff <- ggarrange(acf_12_diff, pacf_12_diff, nrow = 2) # lag = 12
+acf_pacf_12_diff <- ggarrange(acf_12_diff, pacf_12_diff, nrow = 2)
 acf_pacf_12_diff
 
 acf_pacf_combo <- ggarrange(acf_pacf_12_plot, acf_pacf_12_diff, nrow = 1, ncol = 2)
@@ -411,7 +452,7 @@ With ACF and PACF spikes at the second lag suggests that a combined ARMA model o
 ```{r}
 # Fit an ARMA model with order of 2 for both terms with the first difference.
 model_ARMA212 = arima(working_hours_ts, order = c(2, 1, 2))
-summary(model_ARMA212) # RMSE = 1.275151
+summary(model_ARMA212) 
 coeftest(model_ARMA212)
 autoplot(model_ARMA212)
 BIC(model_ARMA212)
@@ -423,6 +464,9 @@ if (all(abs(polyroot(c(1, -model_ARMA212$coef))) < 1)) {
   message("Model is not invertible.")
 } 
 ```
+
+REGRESSION INTERPRETATIONS:
+
 
 ```{r}
 # R-Squared from Week 6-Chapter 8 practice problem set
@@ -468,14 +512,13 @@ print(adj_rsquared)
 
 ```{r}
 # Residuals check ACF/PACF
-checkresiduals(model_ARMA212)
 check_res(model_ARMA212)
 
 # Plot residuals in ACF/PACF
 arma212_acf_residuals <- acf(model_ARMA212$residuals, main = "ACF Residuals")
 arma212_pacf_residuals <- pacf(model_ARMA212$residuals, main = "PACF Residuals")
 
-# combine ACF/PACF with residuals using qqnorm.
+# combine ACF/PACF with residuals
 par(mfrow = c(3,1) , mex = 0.6, cex = 0.8, cex.main = .9)
 plot(arma212_acf_residuals)
 plot(arma212_pacf_residuals)
@@ -486,7 +529,7 @@ qqline(model_ARMA212$residuals, col = 'red')
 ```{r}
 # Q-Test
 r_2_box_test <- Box.test(model_ARMA212$residuals, lag = 5, type = "Ljung")
-r_2_box_test # X-squared = 0.22148, df = 5, p-value = 0.9989
+r_2_box_test
 
 QTest<-numeric(5)
 for (i in 1:5){ 
@@ -519,7 +562,7 @@ The Ljung-Box statistic is used to see if all underlying population autocorrelat
 ```{r}
 # Fit an AR model with order of 2 for both terms with the first difference.
 model_AR210 = arima(working_hours_ts, order = c(2, 1, 0))
-summary(model_AR210) # RMSE = 1.27648, MAE = 0.4587968, MPE = 0.08211823, MAPE = 0.4575043 
+summary(model_AR210)
 coeftest(model_AR210)
 autoplot(model_AR210)
 BIC(model_AR210)
@@ -531,6 +574,9 @@ if (all(abs(polyroot(c(1, -model_AR210$coef))) < 1)) {
   message("Model is not invertible.")
 }  #Not invertible
 ```
+
+REGRESSION INTERPRETATIONS:
+
 
 ```{r, echo=TRUE, warning=FALSE}
 # R-Squared from Week 6-Chapter 8 practice problem set
@@ -573,8 +619,8 @@ print(adj_rsquared)
 
 ```{r}
 # Residuals check ACF/PACF
-checkresiduals(model_AR210)
-check_res(model_AR210) # Interactive
+check_res(model_AR210) 
+
 # Plot residuals in ACF/PACF
 ar2_acf_residuals <- acf(model_AR210$residuals, main = "ACF Residuals")
 ar2_pacf_residuals <- pacf(model_AR210$residuals, main = "PACF Residuals")
@@ -590,7 +636,7 @@ qqline(model_AR210$residuals, col = 'red')
 ```{r}
 # Q-Test
 r_2_box_test <- Box.test(model_AR210$residuals, lag = 3, type = "Ljung")
-r_2_box_test # X-squared = 0.24939, df = 3, p-value = 0.9692
+r_2_box_test 
 
 QTest<-numeric(3)
 for (i in 1:3){ 
@@ -619,7 +665,7 @@ The AIC is 685.56, both phi parameters are < 1, our adjusted r-squared is 0.9614
 ```{r}
 # Fit an MA model with order of 2 for both terms with the first difference.
 model_MA012 = arima(working_hours_ts, order = c(0, 1, 2))
-summary(model_MA012) # RMSE = 1.275151
+summary(model_MA012)
 coeftest(model_MA012)
 autoplot(model_MA012)
 BIC(model_MA012)
@@ -632,6 +678,9 @@ if (all(abs(polyroot(c(1, -model_MA012$coef))) < 1)) {
 }  #Not invertible
 
 ```
+
+REGRESSION INTERPRETATIONS:
+
 
 ```{r}
 # R-Squared from Week 6-Chapter 8 practice problem set
@@ -674,8 +723,7 @@ print(adj_rsquared)
 
 ```{r}
 # Residuals check ACF/PACF
-checkresiduals(model_MA012)
-check_res(model_MA012) # interactive
+check_res(model_MA012)
 # Plot residuals in ACF/PACF
 MA012_acf_residuals <- acf(model_MA012$residuals, main = "ACF Residuals")
 MA012_pacf_residuals <- pacf(model_MA012$residuals, main = "PACF Residuals")
@@ -717,13 +765,13 @@ fcast_MA012_plot
 ```
 The AIC is 685.25, much better than MA(1) and ARMA(2,2), but only marginally better than AR(2). The adjusted r-squared is 0.961485, just slighly lower than AR(2) and ARMA(2,2), and RMSE was 1.275489. The Ljung box test p-value looked good at 0.9886 at 3 lags.
 
-Our preferred model is ________ because __________________________________.
+Our preferred models is AR(2) and MA(2) as they have the highest Adjusted R-squared and lowest AIC/SIC of the three models.
+
+REGRESSION INTERPRETATIONS:
 
 
-
-# Step 2 DTC -- OUT OF SAMPLE --
-## Forecasting Environment for Train/Test split: Estimation Sample and Prediciton Sample.
-There are 204 observations and we'll be doing a 90% / 10% split, thus our estimation sample with have 184 observations and our prediction sample will have 21 observations. We'll be applying a fixed scheme that will produce only one estimate and does not allow for parameter updating.
+# Step 2 DTC Forecasting Environment
+There are 204 observations and we'll be doing a 90% / 10% split, thus our estimation sample with have 184 observations and our prediction sample will have 21 observations. We'll be applying a fixed scheme that will produce only one estimate and does not allow for parameter updating. We'll be using a quadratic loss function, as penalty for over/under estimating forecast has equal penalty.
 
 ## Data Split into Train & Test Samples
 ```{r}
@@ -735,392 +783,447 @@ length(train)
 length(test)
 ```
 
-# Professor refit <- Arima(es, model = model_ar7 example)
+# ARMA(2,1,2)
 ```{r}
-arma212_train <- arima(train, order = c(2,1,2))
-#sigma^2 estimated as 1.78, aic = 634.96
-# Coefficients:
-#          ar1     ar2      ma1      ma2
-#       0.1857  0.1082  -0.2218  -0.2726
-# s.e.  0.4234  0.3667   0.4105   0.3649
-fcast1 <- forecast(arma212_train, h = 1)
-#          Point Forecast    Lo 80    Hi 80    Lo 95    Hi 95
-# Jul 2021       107.9134 106.2035 109.6234 105.2983 110.5286
+arma22 <- arima(train, order = c(2,1,2))
+autoplot(arma22)
+coeftest(arma22)
+summary(arma22)
+arma22fcast_acc_train <- as.data.frame(accuracy(arma22))
 
-accuracy(fcast1)
-#                      ME     RMSE       MAE        MPE      MAPE      MASE         ACF1
-# Training set 0.07429913 1.330678 0.4737119 0.06076164 0.4778019 0.1723317 -0.003449782
+# Generate Forecast for Test Sample
+arma22fcast <- Arima(test, model = arma22)
+summary(arma22fcast)
+arma22fcast_acc_test <- as.data.frame(accuracy(arma22fcast))
 
-e1 <- test-fcast1$mean # 0.8865575
-loss <- e1^2 # 0.7859842
-refit <- Arima(train, model = arma212_train)
+# Extract Fitted Values from Forecast
+arma22_forecast <- round(arma22fcast$fitted, digits = 5)
 
-# i. Estimate a 21 step-ahead forecast
-fcast1 <- numeric(21)
-fcast1 <-forecast(arma212_train, h = 21)
-e1 <- test-fcast1$mean
-MSE1 <- mean(e1^2)
+# Calculate Errors with Test Sample
+arma22error <- round(test - arma22fcast$fitted, digits = 5)
 
-```
+# Calculate Loss with Test Sample.
+arma22_loss <- round(arma22error^2, digits = 5)
 
-# ARMA(2,1,2) Using Base Time-Series
-```{r}
-arma212_train <- arima(train, order = c(2,1,2))
-autoplot(arma212_train)
-coeftest(arma212_train)
-summary(arma212_train) # MSE = 1.77070394, RMSE = 1.330678, sigma^2 estimated as 1.78
-# Coefficients:
-#          ar1     ar2      ma1      ma2
-#       0.1857  0.1082  -0.2218  -0.2726
-# s.e.  0.4234  0.3667   0.4105   0.3649
+# Calculate MSE
+arma22_mse <- round(mean(arma22_loss), digits = 5)
 
-# Forecast using coefficients from model out for 21 periods
-arma212_forecast <- forecast(arma212_train, h = length(test))
-accuracy(arma212_forecast)
+# MPE Test
+arma22mpetest <- lm(arma22error ~ 1)
+summary(arma22mpetest)
 
-# convert forecast into dataframe
-arma212_forecast_df <- round(as.data.frame(arma212_forecast), digits = 3)
+# Use Robust Standard Errors
+coeftest(arma22mpetest, vcoc= vcocHC(arma22mpetest, type = 'HC0'))
 
-# Error, Loss, MSE and MPE test
-error <- round(test - arma212_forecast$mean,digits = 3)
-loss <- round(error^2, digits = 3)
-mse_arma212 <- mean(error^2) # 27.10559
-mpe_test <-lm(error~1) # 4.83, t = 11.11, p-value 5.25e-10
-summary(mpe_test)
+# Run Information Efficiency (I.E) Test
+arma22ietest <- lm(arma22error ~ arma22fcast$fitted)
+summary(arma22ietest)
+# IET  = Extract all info. from residuals and put into forecast.  R
+# Residuals should not be correlated with forecast.
 
-# Combine test, point forecast, error, mse, loss into one dataframe
-final_arma212 <- as.data.frame(cbind(test,arma212_forecast_df$`Point Forecast`,
-                                     error, loss))
-final_arma212 <- datatable(final_arma212, filter = "top", 
-          options = list(pageLength = nrow(test), autoWidth = TRUE),
-          caption = "ARMA(2,1,2) Forecast, Error & Loss")
-final_arma212
+# Use Robust Standard Errors
+coeftest(arma22ietest, vcoc= vcocHC(arma22ietest, type = 'HC0'))
 
-# Information Efficiency Test
-IET <- lm(error~arma212_forecast_df$`Point Forecast`)  
-summary(IET)
+# Create Data Table with Pertinent Values
+arma22_df <- as.data.frame(format(cbind(test, arma22_forecast, arma22error, arma22_loss)
+                                     , scientific = FALSE, nsmall = 5))
+arma22_dt <- datatable(arma22_df, filter = "top", 
+                          options = list(pageLength = nrow(test),autoWidth = TRUE),
+                          caption = "ARMA(0,1,2) Forecast, Error & Loss")
+arma22_dt
 
-# Create data table for pertinent fit metrics
-fit_arma212_metrics <- round(forecast::accuracy(arma212_forecast, test), digits = 5)
-fit_arma212_metrics <- datatable(fit_arma212_metrics,
-            options = list(pageLength = nrow(test), autoWidth = TRUE),
-            caption = "ARMA(2,1,2) Metrics In-Sample & Out-of-Sample")
-fit_arma212_metrics
+# Create Data Table for Pertinent Fit Metrics
 
-#                      ME     RMSE    MSE           MAE        MPE      MAPE    
-# Training set 0.07429913 1.330678  1.770704   0.4737119 0.06076164 0.4778019  
-# Test set     4.82960956 5.206303  27.10559   4.8296096 4.26126071 4.2612607    
-
-# Residuals between model and Train Data
-errors_arma212_res <- arma212_forecast$residuals
-
-# Plots
-auto_arma212_predicted_vs_actual <- autoplot(arma212_forecast, include = 12, main = 
-                                "Forecasts from Arima(2,1,2) on Test Data", xlab = "Time",
-                                ylab = "Index Working Hours") + autolayer(test,
-                                color = "black", xlab = "Time", ylab = "Index Working Hours")
-auto_arma212_predicted_vs_actual
+fit_arma22_dt <- datatable(round(rbind(arma22fcast_acc_train, arma22fcast_acc_test), digits = 5), 
+          options = list(pageLength = nrow(arma22_dt), autoWidth = TRUE),
+          caption = "ARMA(2,1,2) Metrics In-Sample & Out-of-Sample")
+fit_arma22_dt
 
 # Interactive Plots
-arma212_interactive <- test_forecast(actual = working_hours_ts, 
-                                     forecast.obj = arma212_forecast,
-                                     test = test)
-arma212_interactive
-#check_res(arma212_forecast)
+plot_arma22 <- cbind(test,arma22_forecast)
+ts_plot(plot_arma22, width = 3,
+        slider = FALSE, type = "single",
+        Ytitle = "First Difference of Hours Worked Index",
+        Xgrid = TRUE, Ygrid = TRUE,
+        title = "ARMA(2,2) July 2021 - March 2023")
 ```
 
-# ARMA(2,1,0) Using Base Time-Series
+# ARMA(2,1,0)
 ```{r}
-arma210_train <- arima(train, order = c(2,1,0)) 
-autoplot(arma210_train)
-coeftest(arma210_train)
-summary(arma210_train) # RMSE = 1.334404, sigma^2 estimated as 1.79
-# Coefficients:
-#           ar1      ar2
-#       -0.0262  -0.1600 
-# s.e.   0.0728   0.0726
+ar2 <- Arima(train, order = c(2,1,0))
+autoplot(ar2)
+coeftest(ar2)
+summary(ar2)
+ar2fcast_acc_train <- as.data.frame(accuracy(ar2))
 
-# Forecast on test sample 
-arma210_forecast <-forecast(arma210_train, h= length(test))
-arma210_forecast
+# Generate Forecast for Test Sample
+ar2fcast <- Arima(test, model = ar2)
+summary(ar2fcast)
+ar2fcast_acc_test <- as.data.frame(accuracy(ar2fcast))
 
-# convert forecast into data frame
-arma210_forecast_df <- round(as.data.frame(arma210_forecast), digits = 3)
+# Extract Fitted Values from Forecast
+ar2_forecast <- round(ar2fcast$fitted, digits = 5)
 
-# Error, Loss, MSE and MPE test
-error <- round(test-arma210_forecast$mean, digits = 3)
-loss <- round(error^2, digits = 3)
-mse_arma210 <- mean(error^2) # 24.57494
-mpe_test <- lm(error~1) # 4.571
-summary(mpe_test)
+# Calculate Errors with Test Sample
+ar2error <- round(test - ar2fcast$fitted, digits = 5)
 
-# Combine test, point forecast, error, mse, loss into one dataframe
-final_arma210 <- as.data.frame(cbind(test,arma210_forecast_df$`Point Forecast`, 
-                                     error, loss))
-final_arma210 <-datatable(final_arma210, filter = "top", 
-          options = list(pageLength = nrow(test), autoWidth = TRUE),
-          caption = "ARMA(2,1,0) Forecast, Error & Loss")
-final_arma210
+# Calculate Loss with Prediction Sample.
+ar2_loss <- round(ar2error^2, digits = 5)
 
-# Information Efficiency Test
-IET <- lm(error ~ arma210_forecast_df$`Point Forecast`)  
-summary(IET) # t-value = -0.237  p = .815 
+# Calculate MSE
+ar2_mse <- round(mean(ar2_loss), digits = 5)
 
-# Create data table for pertinent fit metrics
-fit_arma210_metrics <- round(forecast::accuracy(arma210_forecast, test), digits = 5)
-fit_arma210_metrics <-  datatable(fit_arma210_metrics,
-          options = list(pageLength = nrow(fit_arma210_metrics), autoWidth = TRUE),
-          caption = "ARMA(2,1,0) Metrics In-Sample & Out-of-Sample")
-fit_arma210_metrics
-#                      ME     RMSE    MSE           MAE        MPE      MAPE     
-# Training set 0.06505855 1.334404  1.780634    0.4638089 0.05273247 0.4675245 
-# Test set     4.57096340 4.957312  24.57494    4.5709634 4.03185528 4.0318553 
+# MPE Test
+ar2mpetest <- lm(ar2error ~ 1)
+summary(ar2mpetest)
 
-# Residuals between model and Train Data
-errors_arma210_res <- arma210_forecast$residuals
+# Use Robust Standard Errors
+coeftest(ar2mpetest, vcoc= vcocHC(ar2mpetest, type = 'HC0'))
 
-# Plots
-auto_arma210_predicted_vs_actual <- autoplot(arma210_forecast, include = 12, 
-                        main = "Forecasts from Arima(2,1,0) on Test Data", 
-                        xlab = "Time", ylab = "Index Working Hours") + 
-                        autolayer(test, color = "black", xlab = "Time", 
-                                  ylab = "Index Working Hours")
-auto_arma210_predicted_vs_actual
+# Run Information Efficiency (I.E) Test
+ar2ietest <- lm(ar2error ~ ar2fcast$fitted)
+summary(ar2ietest)
+
+# Use Robust Standard Errors
+coeftest(ar2ietest, vcoc= vcocHC(ar2ietest, type = 'HC0'))
+
+# Create Data Table with Pertinent Values
+ar2_df <- as.data.frame(format(cbind(test, ar2_forecast, ar2error, ar2_loss)
+                                     , scientific = FALSE, nsmall = 5))
+ar2_dt <- datatable(ar2_df, filter = "top", 
+                          options = list(pageLength = nrow(test),autoWidth = TRUE),
+                          caption = "AR(2) Forecast, Error & Loss")
+ar2_dt
+
+# Create Data Table for Pertinent Fit Metrics
+fit_ar2_dt <- datatable(round(rbind(ar2fcast_acc_train, ar2fcast_acc_test), digits = 5), 
+          options = list(pageLength = nrow(ar2_dt), autoWidth = TRUE),
+          caption = "ARMA(2) Metrics In-Sample & Out-of-Sample")
+fit_ar2_dt
 
 # Interactive Plots
-arma210_interactive <- test_forecast(actual = working_hours_ts, 
-                                     forecast.obj = arma210_forecast,
-                                     train = train,
-                                     test = test)
-arma210_interactive
-check_res(arma210_forecast)
+plot_ar2 <- cbind(test,ar2_forecast)
+ts_plot(plot_ar2, width = 3,
+        slider = FALSE, type = "single",
+        Ytitle = "First Difference of Hours Worked Index",
+        Xgrid = TRUE, Ygrid = TRUE,
+        title = "AR(2) July 2021 - March 2023")
 ```
 
-# ARMA(2,0,0) Dynamic Library & Time Series
+## MA(2) 
 ```{r}
-# Fixed Scheme
-fcast2_dynlm<-numeric(21) #generate a vector of 21 
-model<-dynlm(working_hours_ts ~ stats::lag(working_hours_ts,-1) + 
-             stats::lag(working_hours_ts,-2), 
-             start=c(2006,3), end=c(2021,6)) #fit AR(2), last 21 in t.s. stops
+ma2 <- Arima(train, order = c(0,1,2))
+autoplot(ma2)
+coeftest(ma2)
+summary(ma2)
+ma2fcast_acc_train <- as.data.frame(accuracy(ma2))
 
-for (i in 1:21){ #start a for loop
-  fcast2_dynlm[i]<-coef(model)[1]+coef(model)[2]*working_hours_ts[183+i]+ 
-             coef(model)[3]*working_hours_ts[184+i] #forecasted values each iteration
-} 
-  # Coefficients:
-  #(Intercept)  stats::lag(working_hours_ts, -1)  stats::lag(working_hours_ts, -2)  
-    #2.47647                           0.96502                           0.01104 
+# Generate Forecast for Test Sample
+ma2fcast <- Arima(test, model = ma2)
+summary(ma2fcast)
+ma2fcast_acc_test <- as.data.frame(accuracy(ma2fcast))
 
-# create vectors to capture forecast error and loss for last 21 observations real vs forecast.
-ferror2<-numeric(21) #generate a vector of 21 zeros
-loss2<-numeric(21) #generate a vector of 21 zeros
-for (i in 1:21){
-  ferror2[i]<-working_hours_ts[184+i]- fcast2_dynlm[i] #fill in forecasted values at the end of each iteration
-  loss2[i] <-ferror2[i]^2
-}
+# Extract Fitted Values from Forecast
+ma2_forecast <- round(ma2fcast$fitted, digits = 5)
 
-ar2_dynlm <- round(cbind(test,fcast2_dynlm, ferror2, loss2), digits = 4)
-ar2_dynlm <- datatable(ar2_dynlm, caption = "DYNLM ARMA(2,1,0) Metrics In-Sample & Out-of-Sample")
-ar2_dynlm
+# Calculate Errors with Test Sample
+ma2error <- round(test - ma2fcast$fitted, digits = 5)
 
-RMSE <- sqrt(mean(test-fcast2_dynlm)^2) # 0.5378386 - RUN : cbind(final_arma210,ar2_dynlm$fcast2, ar2_dynlm$ferror2, ar2_dynlm$loss2)
-MSE2 <- mean(loss2) #  0.4344058 - What?
-mpetest <- lm(ferror2 ~ 1)
-summary(mpetest)
+# Calculate Loss with Test Sample.
+ma2_loss <- round(ma2error^2, digits = 5)
 
-# Create data table for pertinent fit metrics
-fit_DYNLM_arma210_metrics <- round(cbind(test,fcast2_dynlm,ferror2, loss2), digits = 4)
-fit_DYNLM_arma210_metrics <- datatable(fit_DYNLM_arma210_metrics,
-                             caption = "DYNLM - ARMA(2,1,0) Metrics In-Sample & Out-of-Sample")
-fit_DYNLM_arma210_metrics
+# Calculate MSE
+ma2_mse <- round(mean(ma2_loss), digits = 5)
 
-IETest <- lm(ferror2 ~ fcast2_dynlm)
-summary(IETest) # t = -1.648 p = .1159  
-checkresiduals(fcast2_dynlm)
-```
+# MPE Test
+ma2mpetest <- lm(ma2error ~ 1)
+summary(ma2mpetest)
 
-## ARMA(0,1,2) Using Base Time-Series
-```{r}
-arma012_train <- arima(train, order = c(0,1,2))
-autoplot(arma012_train)
-coeftest(arma012_train)
-summary(arma012_train) # 1.332218, sigma^2 estimated as 1.784
-# Coefficients:
-#           ma1      ma2
-#       -0.0411  -0.1765
-# s.e.   0.0731   0.0745
+# Use Robust Standard Errors
+coeftest(ma2mpetest, vcoc= vcocHC(ma2mpetest, type = 'HC0'))
 
-arma012_forecast <- forecast(arma012_train, h = length(test)) # predict - n=21
-arma012_forecast
+# Run Information Efficiency (I.E) Test
+ma2ietest <- lm(ma2error ~ ma2fcast$fitted)
+summary(ma2ietest)
 
-# convert forecast into dataframe
-arma012_forecast_df <- round(as.data.frame(arma012_forecast), digits = 3)
+# Use Robust Standard Errors
+coeftest(ma2ietest, vcoc= vcocHC(ma2ietest, type = 'HC0'))
 
-# Error, Loss, MSE and MPE test
-error <- round(test-arma012_forecast$mean, digits = 3)
-loss <- round(error^2, digits =3)
-mse_arma012 <- mean(error^2) # 25.43779
-mpe_test <- lm(error~1) # 0.2533
-summary(mpe_test)
+# Create Data Table with Pertinent Values
+ma2_df <- as.data.frame(format(cbind(test, ma2_forecast, ma2error, ma2_loss)
+                                     , scientific = FALSE, nsmall = 5))
+ma2_dt <- datatable(ma2_df, filter = "top", 
+                          options = list(pageLength = nrow(test),autoWidth = TRUE),
+                          caption = "MA(2) Forecast, Error & Loss")
+ma2_dt
 
-# Combine test, point forecast, error, mse, loss into one data frame
-final_arma012 <- as.data.frame(cbind(test, arma012_forecast$`Point Forecast`,
-                                     error, loss))
-final_arma012 <- datatable(final_arma012, filter = "top",
-            options = list(pageLength = nrow(test), autoWidth = TRUE),
-            caption = "ARMA(0,1,2) Forecast, Error & Loss")
-final_arma012
+# Create Data Table for Pertinent Fit Metrics
+fit_ma2_dt <- datatable(round(rbind(ma2fcast_acc_train, ma2fcast_acc_test), digits = 5), 
+          options = list(pageLength = nrow(ma2_dt), autoWidth = TRUE),
+          caption = "ARMA(2) Metrics In-Sample & Out-of-Sample")
+fit_ma2_dt
 
-# Information Efficiency Test
-IET <- lm(error ~ arma012_forecast_df$`Point Forecast`)  
-summary(IET) # t-value = -2.168  p = 0.04309
-
-# Create data table for pertinent fit metrics
-fit_arma012_metrics <- round(as.data.frame(forecast::accuracy(arma012_forecast, test)), digits = 5)
-fit_arma012_metrics <- datatable(fit_arma012_metrics, 
-          options = list(pageLength = nrow(fit_arma012_metrics), autoWidth = TRUE),
-                    caption = "ARMA(0,1,2) Metrics In-Sample & Out-of-Sample")
-fit_arma012_metrics
-
-# Plots
-auto_arma012_train_predicted_vs_actual <- autoplot(arma012_forecast, include = 12,
-                         main = "Forecasts from Arima(0,1,2) on Test Data", 
-                         xlab = "Time", ylab = "Index Working Hours") + 
-                        autolayer(test, color = "black", xlab = "Time", 
-                                  ylab = "Index Working Hours")                                       
-auto_arma012_train_predicted_vs_actual
-
-# Interactive Charts
-arma012_interactive <- test_forecast(actual = working_hours_ts, 
-                                 forecast.obj = arma012_forecast, test = test)
-arma012_interactive
-checkresiduals(arma210_forecast)
-check_res(arma210_forecast)
+# Interactive Plots
+plot_ma2 <- cbind(test,ma2_forecast)
+ts_plot(plot_ma2, width = 3,
+        slider = FALSE, type = "single",
+        Ytitle ="First Difference of Hours Worked Index",
+        Xgrid = TRUE, Ygrid = TRUE,
+        title = "MA(2) July 2021 - March 2023")
 ```
 
 # Simple Average 4 Naive Forecast
 ```{r}
-# last 4 observations
-last4 <- ts(sapply(train,tail,4)) # grab last 4
-
-#Model III (Average-4)
-f4 <-numeric(21) # estimation sample = 21
+f4 <-numeric(21) # Test Sample = 21
 
 for (i in 1:21){ 
-  f4[i]<-(working_hours_ts[180+i]+working_hours_ts[181+i]+
-              working_hours_ts[182+i]+working_hours_ts[183+i])/4 #forecast is the average of the last 4 observations
+  f4[i]<-(working_hours_ts[181+i]+working_hours_ts[182+i]+
+              working_hours_ts[183+i]+working_hours_ts[184+i])/4
 }
 
-error <- round(test-f4, digits = 3)
-loss <- round(error^2, digits = 3)
-mse_MA4 <- mean(error^2) # 0.3365476
-mpe_test_MA4 <- lm(error~1) # 0.5024 
+f4error <- round(test-f4, digits = 3)
+f4loss <- round(f4error^2, digits = 3)
+mse_MA4 <- mean(f4error^2) 
+mpe_test_MA4 <- lm(f4error~1) 
 summary(mpe_test_MA4) 
 
-# Combine test, point forecast, error, loss into one dataframe
-final_f4 <- datatable(cbind(test, f4, error, loss), 
+# Use Robust Standard Errors
+coeftest(mpe_test_MA4, vcoc= vcocHC(mpe_test_MA4, type = 'HC0'))
+
+# Combine Test, Forecast, Error, Loss into one Data Frame
+final_f4 <- datatable(cbind(test, f4, f4error, f4loss), 
                       caption = "Simple Average 4 Naive Forecast: July 2021 - March 2023")
 final_f4 
-IET_test <- lm(error ~ f4)
+IET_test <- lm(f4error ~ f4)
 summary(IET_test)
 
-# Create data table for pertinent fit metrics
+# Use Robust Standard Errors
+coeftest(IET_test, vcoc= vcocHC(ma2ietest, type = 'HC0'))
+
+# Create Data Table for Pertinent Fit Metrics
 fit_MA4_metrics <- datatable(round(accuracy(f4, test), digits = 5))
 fit_MA4_metrics
-#                 ME      RMSE       MAE       MPE      MAPE      
-# Test set 0.8404762 0.9350961 0.8404762 0.7505345 0.7505345 
 
-# Combine test, point forecast, error, mse, loss into one dataframe
-test_df <- as.data.frame(test) # create a df from test
+# Combine Test, Forecast, Error, MSE, Loss into One Data Frame
+f4_dt <- datatable(round(cbind(test, f4, f4error, f4loss), digits = 5)) # create a df from test
+f4_dt
 
-plot(f4, main = "Simple Naive Last 4 Observations Predicted Vs. Actual", 
-     type = "l", col = "red", xlab = "Date", ylab = "Working Hours Index",
-     lwd = 2)
-lines(test_df, col = "black", lwd = 2)
-legend("bottomright",          
-       c("Simple Naive 4", "Actual"),
-       lty = 1,
-       col = 1:2)
+# Plots
+f4_plot <- cbind(test, f4)
+
+ts_plot(f4_plot, width = 3, slider = FALSE, type = "single", Ytitle = "First Difference of Working Hours Index",
+        Xgrid = TRUE, Ygrid = TRUE, title = "Simple Naive Last 4 Observations Predicted Vs. Actual")
 ```
 
-# Graph of All Forecasts
+# Graph of ARMA(2,2), AR(2), MA(2) & Simple Naive Last 4 Observations Graph
 ```{r}
-#Get Values point forecast values from forecasts
-arma212_predict <- arma212_forecast_df$`Point Forecast`
-arma210_predict <- arma210_forecast_df$`Point Forecast`
-arma012_predict <- arma012_forecast_df$`Point Forecast`
-simple_naive_4 <- f4
-
-# Bind All Forecasts together and Graph
-`All Forecasts July 2021 - MAR 2023` <-cbind(arma212_predict,arma210_predict,
-                                             arma012_predict,simple_naive_4, test)
-plot_all_forecasts <- ts_plot(`All Forecasts July 2021 - MAR 2023`, width = 3, 
-                              slider = FALSE, type = "single",
-                              Ytitle = "Hours Worked Index, Base = 100 (2007)",
-                              Xgrid = TRUE, Ygrid = TRUE,
-                              title = "All Forecasts July 2021 = March 2023")
-plot_all_forecasts
+# Bind All Forecasts for ARMA(2,2), AR(2), MA(2) and Simple Naive 4 together
+our_models <- cbind(test, arma22_forecast, ar2_forecast,ma2_forecast,f4)
+plot_our_models <- ts_plot(our_models, slider = FALSE, type = "single",
+                          Xgrid = TRUE, Ygrid = TRUE,
+                          title = "All Forecasts July 2021 = March 2023")
+plot_our_models
 ```
 
-# Combine forecasts
+# Equal Weight Combined Forecast
 ```{r}
 # Combine the forecasts using the OLS weighted combination scheme --------------
 # 4 models, so n=4 and each weight is 1/n = 0.25
 
-ew_comb_fcast21 <- numeric(21)
+ew_comb_fcast <- numeric(21)
 
 for (i in 1:21) {
-  ew_comb_fcast21[i] <- 0.25 * arma212_forecast$fitted[i] + 0.25 * arma210_forecast$fitted[i] +
-                        0.25 * arma012_forecast$fitted[i] + 0.25 * f4[i]
-#  ew_comb_e21 <- working_hours_ts[185+i] - ew_comb_fcast21[i]
-#  ew_comb_loss[i] <- ew_comb_e21[i]^2
+  ew_comb_fcast[i] <- 0.25 * arma22_forecast[i] + 0.25 * ar2_forecast[i] +
+                        0.25 * ma2_forecast[i] + 0.25 * f4[i]
 }
 
 # Error, Loss, MSE and MPE test
-error <- round(test-ew_comb_fcast21, digits = 3)
-loss <- round(error^2, digits = 3)
-mse_combo <- mean(error^2)
-mpe_test_combo <- lm(error~1)
-summary(mpe_test_combo)
+ew_error <- round(test-ew_comb_fcast, digits = 3)
+ew_loss <- round(ew_error^2, digits = 3)
+ew_mse_combo <- mean(ew_error^2)  
+ew_mpe_test_combo <- lm(ew_error~1)
+summary(ew_mpe_test_combo)
 
-# Combine test, equal weight forecast, error, loss into table
-ew_combo_fcast21_df <- datatable(round(cbind(test,ew_comb_fcast21, error, loss), digits = 3),
+# Use Robust Standard Errors
+coeftest(ew_mpe_test_combo, vcoc= vcocHC(ew_mpe_test_combo, type = 'HC0'))
+
+ew_IET_test <- lm(ew_error ~ ew_comb_fcast)
+summary(ew_IET_test)
+
+# Use Robust Standard Errors
+coeftest(ew_IET_test, vcoc= vcocHC(ew_IET_test, type = 'HC0'))
+
+# Combine Test, Equal Weight Forecast, Error, Loss into table
+ew_combo_fcast21_df <- datatable(round(cbind(test,ew_comb_fcast, ew_error, ew_loss), digits = 3),
   caption = "July 2021-March 2023: Equal Weight ARMA(2,2), AR(2), MA(2), Simple Naive Last 4 observations")
 ew_combo_fcast21_df
 
-# Generate Inverse MSE Combined forecast
-imse_comb_fcast21 <- numeric(21)
+# Create Data Table for Pertinent Fit Metrics
+fit_ew_comb_metrics <- datatable(round(accuracy(ew_comb_fcast, test), digits = 5))
+fit_ew_comb_metrics
 
-imse_arma212 <- (1/mse_arma212) / ((1/mse_arma212) + (1/mse_arma210) + (1/mse_arma012) + (1/mse_MA4))
-imse_arma210 <- (1/mse_arma210) / ((1/mse_arma210) + (1/mse_arma212) + (1/mse_arma012) + (1/mse_MA4))
-imse_arma012 <- (1/mse_arma012) / ((1/mse_arma012) + (1/mse_arma212) + (1/mse_arma210) + (1/mse_MA4))
-imse_sma4 <- (1/mse_MA4) / ((1/mse_MA4) + (1/mse_arma212) + (1/mse_arma210) + (1/mse_arma012))
+# Plot Equal Weight Combined Forecast
+ew_comb_plot <- cbind(test, ew_comb_fcast)
+
+ew_plot <- ts_plot(ew_comb_plot, width = 3, slider = FALSE, type = "single", 
+                    Ytitle = "First Difference of Working Hours Index",
+                    Xtitle = "Date",
+                    Xgrid = TRUE, Ygrid = TRUE, 
+                    title = "July 2021-March 2023: Equal Weight ARMA(2,2), AR(2), MA(2), Simple Naive Last 4 observations")
+ew_plot
+```
+
+COMMENTS: 
+
+# Inverse MSE Forecast
+```{r}
+imse_comb_fcast <- numeric(21)
+
+imse_arma212 <- (1/arma22_mse) / ((1/arma22_mse) + (1/ar2_mse) + (1/ma2_mse) + (1/mse_MA4))
+imse_arma210 <- (1/ar2_mse) / ((1/ar2_mse) + (1/arma22_mse) + (1/ma2_mse) + (1/mse_MA4))
+imse_arma012 <- (1/ma2_mse) / ((1/ma2_mse) + (1/arma22_mse) + (1/ar2_mse) + (1/mse_MA4))
+imse_sma4 <- (1/mse_MA4) / ((1/mse_MA4) + (1/arma22_mse) + (1/ar2_mse) + (1/ma2_mse))
 
 for (i in 1:21){
-     imse_comb_fcast21[i] <- (imse_arma212 * arma212_forecast$fitted[i] + 
-                                  imse_arma210 * arma210_forecast$fitted[i] +
-                                  imse_arma012 * arma012_forecast$fitted[i] +
+     imse_comb_fcast[i] <- (imse_arma212 * arma22_forecast[i] + 
+                                  imse_arma210 * ar2_forecast[i] +
+                                  imse_arma012 * ma2_forecast[i] +
                                   imse_sma4 * f4[i])
 }
 
 # Error, Loss, MSE and MPE test
-error <- round(test-imse_comb_fcast21, digits = 3)
-loss <- round(error^2, digits = 3)
-imse_combo <- mean(error^2)
-mpe_test_combo_inverse <- lm(error~1)
+imse_error <- round(test-imse_comb_fcast, digits = 3)
+imse_loss <- round(imse_error^2, digits = 3)
+imse_combo <- mean(imse_error^2)
+mpe_test_combo_inverse <- lm(imse_error~1)
 summary(mpe_test_combo_inverse)
 
-imse_comb_mse4 <- mean(error^2)
-# Combine test, equal weight forecast, error, loss into table
-imse_comb_final <- datatable(round(cbind(test,imse_comb_fcast21, error, loss),digits = 3),
+# Use Robust Standard Errors
+coeftest(mpe_test_combo_inverse, vcoc= vcocHC(mpe_test_combo_inverse, type = 'HC0'))
+
+imse_IET_test <- lm(imse_error ~ imse_comb_fcast)
+summary(imse_IET_test)
+
+# Use Robust Standard Errors
+coeftest(IET_test, vcoc= vcocHC(IET_test, type = 'HC0'))
+
+# Combine Test, Equal Weight Forecast, Error, Loss into Table
+imse_comb_final <- datatable(round(cbind(test,imse_comb_fcast, imse_error, imse_loss),digits = 3),
                 caption = "Inverse MSE Combined Forecast for July 2021 - Mar 2023")
 imse_comb_final
-    
-# # Optimal Linear Forecast
-# g0<-window(working_hours_ts,start=c(2021,7))
-# 
-# comb<-lm(g0 ~ arma212_forecast_df$`point_forecast` + arma210_forecast_df$`Point Forecast`+
-#            arma012_forecast_df$`Point Forecast` + f4) # forecasts of 4 models
-# summary(comb)  # keep an eye out on
+
+# Create Data Table for Pertinent Fit Metrics
+fit_imse_comb_metrics <- datatable(round(accuracy(imse_comb_fcast, test), digits = 5),
+                      caption = "Inverse MSE Combined Forecast for July 2021 - Mar 2023")
+fit_imse_comb_metrics
+
+# Plot Inverse MSE Forecast
+imse_comb_plot <- cbind(test, imse_comb_fcast)
+
+imse_plot <- ts_plot(imse_comb_plot, width = 3, slider = FALSE, type = "single", 
+                    Ytitle = "First Difference of Working Hours Index",
+                    Xgrid = TRUE, Ygrid = TRUE, 
+                    title = "July 2021-March 2023: Inverse MSE of ARMA(2,2), AR(2),
+                    MA(2), Simple Naive Last 4 observations")
+imse_plot
+```
+
+COMMENTS: 
+
+# OLS Weighted Forecast
+```{r}
+# define weights to use
+arma22_weight <- lm(arma22fcast$fitted ~ test)
+ar2_weight <- lm(ar2fcast$fitted ~ test)
+ma2_weight <- lm(ma2fcast$fitted ~ test)
+f4_weight <- lm(f4 ~ test)
+
+ols_comb_fcast <- numeric(21)
+
+for (i in 1:21) {
+  ols_comb_fcast[i] <- 0.25 * arma22_forecast[i] + 0.25 * ar2_forecast[i] +
+                        0.25 * ma2_forecast[i] + 0.25 * f4[i]
+}
+
+# Error, Loss, MSE and MPE test
+ols_error <- round(test-ew_comb_fcast, digits = 3)
+ols_loss <- round(ew_error^2, digits = 3)
+ols_mse_combo <- mean(ew_error^2)  
+ols_mpe_test_combo <- lm(ew_error~1)
+summary(ew_mpe_test_combo)
+
+
+
+
+
+
+arma22_weight1 <- lm(abs(arma22fcast$residuals) ~ arma22fcast$fitted^2) # -0.05154
+ar2_weight1 <- lm(abs(ar2fcast$residuals) ~ ar2fcast$fitted^2) # -0.05435
+ma2_weight1 <- lm(abs(ma2fcast$residuals) ~ ma2fcast$fitted^2) #  -0.05354 
+f4_weight1 <- lm(abs(f4error ~ test))
+
+
+ols_comb_fcast <- numeric(21)
+
+for (i in 1:21) {
+  ols_comb_fcast[i] <- 0.25 * arma22_forecast[i] + 0.25 * ar2_forecast[i] +
+                        0.25 * ma2_forecast[i] + 0.25 * f4[i]
+}
+
+# Error, Loss, MSE and MPE test
+ols_error <- round(test-ew_comb_fcast, digits = 3)
+ols_loss <- round(ew_error^2, digits = 3)
+ols_mse_combo <- mean(ew_error^2)  
+ols_mpe_test_combo <- lm(ew_error~1)
+summary(ew_mpe_test_combo)
+
+
+
+
+
+
+```
+
+# Graph of All Models
+```{r}
+all_models <- cbind(test, arma22_forecast,ar2_forecast, ma2_forecast, f4,
+                    ew_comb_fcast, imse_comb_fcast)
+all_models_plot <- ts_plot(all_models, width = 2, slider = FALSE, type = "single",
+                    Ytitle = "First Difference of Working Hours Index",
+                    Xgrid = TRUE, Ygrid = TRUE, 
+                    title = "July 2021-March 2023: All Models")
+all_models_plot
+```
+
+# Optimal Linear Forecast- what in the world is this?
+```{r}
+g0<-window(working_hours_ts,start=c(2021,7))
+comb <-lm(g0 ~ arma22_forecast + ar2_forecast + ma2_forecast + f4) # forecasts of 4 models
+summary(comb)  #AR^2 = 0.3906
+```
+
+# Table for All Model Results
+```{r}
+# Combine Forecasts and Loss for Each Model
+summary_table <- datatable(cbind(test, arma22_forecast, arma22error, arma22_loss, ar2_forecast,
+                         ar2error, ar2_loss, ma2_forecast, ma2error, ma2_loss,
+                         f4, f4error,f4loss, ew_comb_fcast, ew_error, ew_loss,
+                         imse_comb_fcast, imse_error, imse_loss),
+                         filter = "top", 
+                          options = list(pageLength = nrow(test),autoWidth = TRUE),
+                          caption = "Summary Table : All Models")
+summary_table
+```
+
+## Qudratic Loss Differential
+```{r}
+arma22_ar2_loss_diff <- as.data.frame(cbind(test,arma22_loss, ar2_loss, ma2_loss, 
+                                            f4loss,ew_loss,imse_loss)) %>%
+                        mutate(arma22_ar2_quad_loss_diff = arma22_loss-ar2_loss,
+                               arma22_ma2_quad_loss_diff = arma22_loss-ma2_loss,
+                               arma22_f4_quad_loss_diff = arma22_loss-f4loss,
+                               arma22_ew_combo_loss_diff = arma22_loss-ew_loss,
+                               arma22_imse_combo_loss_diff = arma22_loss-imse_loss
+                               )
+arma22_ar2_loss_diff # forecast errors are random variable, so mean can be useful.
 ```
