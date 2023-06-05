@@ -1166,9 +1166,6 @@ summary(ew_mpe_test_combo)
 
 
 
-
-
-
 arma22_weight1 <- lm(abs(arma22fcast$residuals) ~ arma22fcast$fitted^2) # -0.05154
 ar2_weight1 <- lm(abs(ar2fcast$residuals) ~ ar2fcast$fitted^2) # -0.05435
 ma2_weight1 <- lm(abs(ma2fcast$residuals) ~ ma2fcast$fitted^2) #  -0.05354 
@@ -1199,7 +1196,7 @@ summary(ew_mpe_test_combo)
 # Graph of All Models
 ```{r}
 all_models <- cbind(test, arma22_forecast,ar2_forecast, ma2_forecast, f4,
-                    ew_comb_fcast, imse_comb_fcast)
+                    ew_comb_fcast, imse_comb_fcast) # NOTE MISSING OLS WEIGHT
 all_models_plot <- ts_plot(all_models, width = 2, slider = FALSE, type = "single",
                     Ytitle = "First Difference of Working Hours Index",
                     Xgrid = TRUE, Ygrid = TRUE, 
@@ -1220,22 +1217,29 @@ summary(comb)  #AR^2 = 0.3906
 summary_table <- datatable(cbind(test, arma22_forecast, arma22error, arma22_loss, ar2_forecast,
                          ar2error, ar2_loss, ma2_forecast, ma2error, ma2_loss,
                          f4, f4error,f4loss, ew_comb_fcast, ew_error, ew_loss,
-                         imse_comb_fcast, imse_error, imse_loss),
+                         imse_comb_fcast, imse_error, imse_loss), # NOTE MISSING OLS WEIGHT
                          filter = "top", 
                           options = list(pageLength = nrow(test),autoWidth = TRUE),
                           caption = "Summary Table : All Models")
 summary_table
 ```
 
-## Qudratic Loss Differential
+## Qudratic Loss Data Tables
 ```{r}
-arma22_ar2_loss_diff <- as.data.frame(cbind(test,arma22_loss, ar2_loss, ma2_loss, 
-                                            f4loss,ew_loss,imse_loss)) %>%
-                        mutate(arma22_ar2_quad_loss_diff = arma22_loss-ar2_loss,
-                               arma22_ma2_quad_loss_diff = arma22_loss-ma2_loss,
-                               arma22_f4_quad_loss_diff = arma22_loss-f4loss,
-                               arma22_ew_combo_loss_diff = arma22_loss-ew_loss,
-                               arma22_imse_combo_loss_diff = arma22_loss-imse_loss
-                               )
-arma22_ar2_loss_diff # forecast errors are random variable, so mean can be useful.
+model_losses <- datatable(cbind(arma22_loss, ar2_loss, ma2_loss, 
+                                            f4loss,ew_loss,imse_loss),
+                          caption = "Model Loss Data Table") 
+
+# Mean Loss for Each Model Data Table
+arma22_loss_mean <- mean(arma22_loss)
+ar2_loss_mean <- mean(ar2_loss)
+ma2_loss_mean <- mean(ma2_loss)
+f4loss_mean <- mean(f4loss)
+ew_loss_mean <- mean(ew_loss)
+imse_loss_mean <- mean(imse_loss)
+
+models_mean_loss <- datatable(round(cbind(arma22_loss_mean, ar2_loss_mean, ma2_loss_mean, 
+                                    f4loss_mean, ew_loss_mean, imse_loss_mean), digits = 5),
+                              caption = "All Models Mean Loss Out Of Sample")
+models_mean_loss
 ```
