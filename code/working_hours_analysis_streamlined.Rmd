@@ -13,14 +13,20 @@ editor_options:
 ---
 
 TO DO:
-1. Finish OLS-weighted optimal forecast - emulate talbe 9.8 on text pp.245
-2. Check IET Test t-values
-3. Evaluate Homoskedasticity/Heteroscedasticity of regressions?
+1. OLS-weighted optimal forecast - emulate table 9.8 on text pp.245, already in slide deck in google drive
+
+2. Regression Interpretation for 3 models to check the box.
+
+3. Graphs - Haven't done anything for Combination Forecasts.
+  a. Haven't done anything for Combination Forecasts.
+  
+4. Chris' narrative report checklist review
+
+5. Update Slide deck with items list above.  Erik updated nearly everything.  Needs closers that want to win championships.
 
 # Evaluating Heteroscedasticity
 plot(arma22_forecast, resid(arma22fcast$residuals), xlab='Fitted Values', ylab='Residuals')
 abline(0,0)
-
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
@@ -281,7 +287,7 @@ summary(kpss_first_difference)
 
 The normal time series without differencing as a t-statistics of 3.2645, which is much higher than critical value at 10 pct significance-level.  When we difference working hours and complete KPSS, our t-statistic is .01174 and lower than critical value at 1 pct.  This confirms Dickey-Fuller that differencing hours worked makes the time series stationary.
 
-## Creat First Difference Time Series, Conduct EDA and Evaluate Stationarity
+## EDA & Evaluate Stationarity on Transformed First Differenced 
 ```{r}
 # create First Difference of Hours Worked Index
 working_hours_diff = diff(working_hours_ts)
@@ -465,8 +471,7 @@ if (all(abs(polyroot(c(1, -model_ARMA212$coef))) < 1)) {
 } 
 ```
 
-REGRESSION INTERPRETATIONS:
-
+REGRESSION INTERPRETATION(S):
 
 ```{r}
 # R-Squared from Week 6-Chapter 8 practice problem set
@@ -657,6 +662,7 @@ summary(fcast_AR21)
 fcast_AR21_plot <- plot_forecast(fcast_AR21, title = "ARMA(2,1,0) h =6", 
                                                                   Ytitle = "index-Base 2007 = 100", Xtitle="Date")
 fcast_AR21_plot
+check_res(fcast_AR21)
 ```
 
 The AIC is 685.56, both phi parameters are < 1, our adjusted r-squared is 0.9614188 and RMSE is 1.2769. Our Q-test using Ljung was 0.24938500 and p-value looked good at 0.9692 with three lags. The AIC was lower than ARMA 2,1,2 and adjusted r-squared was marginally better.  
@@ -757,7 +763,7 @@ abline(h = .05, col = "red", lty = 3)
 fcast_MA012 <- forecast(model_MA012, h=6)
 autoplot(fcast_MA012, include = 12, ylab = "Working hours - Base 2007 with 100")
 summary(fcast_MA012)
-
+check_res(model_MA012)
 # Interactive Chart
 fcast_MA012_plot <- plot_forecast(fcast_MA012, title = "ARMA(0,1,2) h =6", 
                                  Ytitle = "index-Base 2007 = 100", Xtitle="Date")
@@ -793,6 +799,7 @@ arma22fcast_acc_train <- as.data.frame(accuracy(arma22))
 
 # Generate Forecast for Test Sample
 arma22fcast <- Arima(test, model = arma22)
+check_res(arma22fcast)
 summary(arma22fcast)
 arma22fcast_acc_test <- as.data.frame(accuracy(arma22fcast))
 
@@ -859,6 +866,7 @@ ar2fcast_acc_train <- as.data.frame(accuracy(ar2))
 # Generate Forecast for Test Sample
 ar2fcast <- Arima(test, model = ar2)
 summary(ar2fcast)
+check_res(ar2fcast)
 ar2fcast_acc_test <- as.data.frame(accuracy(ar2fcast))
 
 # Extract Fitted Values from Forecast
@@ -921,6 +929,7 @@ ma2fcast_acc_train <- as.data.frame(accuracy(ma2))
 # Generate Forecast for Test Sample
 ma2fcast <- Arima(test, model = ma2)
 summary(ma2fcast)
+check_res(ma2fcast)
 ma2fcast_acc_test <- as.data.frame(accuracy(ma2fcast))
 
 # Extract Fitted Values from Forecast
@@ -1001,11 +1010,13 @@ summary(IET_test)
 coeftest(IET_test, vcoc= vcocHC(ma2ietest, type = 'HC0'))
 
 # Create Data Table for Pertinent Fit Metrics
-fit_MA4_metrics <- datatable(round(accuracy(f4, test), digits = 5))
+fit_MA4_metrics <- datatable(round(accuracy(f4, test), digits = 5),
+                      caption = "Simple Average 4 Naive Forecast: July 2021 - March 2023")
 fit_MA4_metrics
 
 # Combine Test, Forecast, Error, MSE, Loss into One Data Frame
-f4_dt <- datatable(round(cbind(test, f4, f4error, f4loss), digits = 5)) # create a df from test
+f4_dt <- datatable(round(cbind(test, f4, f4error, f4loss), digits = 5),
+                   caption = "Simple Average 4 Naive Forecast: July 2021 - March 2023")
 f4_dt
 
 # Plots
@@ -1059,7 +1070,8 @@ ew_combo_fcast21_df <- datatable(round(cbind(test,ew_comb_fcast, ew_error, ew_lo
 ew_combo_fcast21_df
 
 # Create Data Table for Pertinent Fit Metrics
-fit_ew_comb_metrics <- datatable(round(accuracy(ew_comb_fcast, test), digits = 5))
+fit_ew_comb_metrics <- datatable(round(accuracy(ew_comb_fcast, test), digits = 5),
+        caption = "July 2021-March 2023: Equal Weight ARMA(2,2), AR(2), MA(2), Simple Naive Last 4 observations")
 fit_ew_comb_metrics
 
 # Plot Equal Weight Combined Forecast
