@@ -417,12 +417,15 @@ knitr::include_graphics("../figures/Model_estimation_results_table.png")
 
 # The multistep forecasts, along with their corresponding bands, have been accurately plotted. The interpretation of the results are provided
 
-# ARMA(2, 2)
+# ARMA(2,2)
 ```{r}
 # Forecast 6 months
 fcast_ARMA212 = forecast(model_ARMA212, h=6)
-autoplot(fcast_ARMA212, include = 12, ylab = "Working hours - Base 2007 with 100") 
 summary(fcast_ARMA212)
+
+# Data frame of Forecast
+fcastarma22 <- as.data.frame(fcast_ARMA212) %>%
+  select(`Point Forecast`)
 
 # Interactive Plot
 fcast_ARMA212_plot <- plot_forecast(fcast_ARMA212, title = "ARMA(2,1,2) h =6", 
@@ -433,11 +436,16 @@ fcast_ARMA212_plot
 # AR(2)
 ```{r}
 # Forecast 6 months
-fcast_AR21 = forecast(model_AR210, h=6)
-autoplot(fcast_AR21, include = 12, ylab = "Working hours - Base 2007 with 100") 
-summary(fcast_AR21)
-fcast_AR21_plot <- plot_forecast(fcast_AR21, title = "ARMA(2,1,0) h =6", 
-                                                                  Ytitle = "index-Base 2007 = 100", Xtitle="Date")
+fcast_AR2 = forecast(model_AR210, h=6)
+summary(fcast_AR2)
+
+# Data frame of Forecast
+fcastar2 <- as.data.frame(fcast_AR2) %>%
+  select(`Point Forecast`)
+
+# Interactive Chart
+fcast_AR21_plot <- plot_forecast(fcast_AR2, title = "ARMA(2,1,0) h =6", 
+                                Ytitle = "index-Base 2007 = 100", Xtitle="Date")
 fcast_AR21_plot
 ```
 
@@ -445,8 +453,11 @@ fcast_AR21_plot
 ```{r}
 # Forecast 6 months
 fcast_MA012 <- forecast(model_MA012, h=6)
-autoplot(fcast_MA012, include = 12, ylab = "Working hours - Base 2007 with 100")
 summary(fcast_MA012)
+
+# Data frame of Forecast
+fcastma2 <- as.data.frame(fcast_MA012) %>%
+  select(`Point Forecast`)
 
 # Interactive Chart
 fcast_MA012_plot <- plot_forecast(fcast_MA012, title = "ARMA(0,1,2) h =6", 
@@ -504,7 +515,7 @@ coeftest(arma22mpetest, vcoc= vcocHC(arma22mpetest, type = 'HC0'))
 # Run Information Efficiency (I.E) Test
 arma22ietest <- lm(arma22error ~ arma22fcast$fitted)
 summary(arma22ietest)
-# IET  = Extract all info. from residuals and put into forecast.  R
+# IET  = Extract all info. from residuals and put into forecast.
 # Residuals should not be correlated with forecast.
 
 # Use Robust Standard Errors
@@ -615,7 +626,7 @@ ma2_forecast <- round(ma2fcast$fitted, digits = 5)
 # Calculate Errors with Test Sample
 ma2error <- round(test - ma2fcast$fitted, digits = 5)
 
-# Calculate Loss with Test Sample.
+# Calculate Loss with Test Sample
 ma2_loss <- round(ma2error^2, digits = 5)
 
 # Calculate MSE
