@@ -14,13 +14,11 @@ editor_options:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
-library(dynlm)
 library(readxl)
 library(forecast)
 library(tidyverse)
 library(tseries)
 library(fpp2)
-library(knitr)
 library(stats)
 library(ggpubr)
 library(scales)
@@ -28,7 +26,6 @@ library(datplot)
 library(kableExtra)
 library(ggannotate)
 library(lmtest)
-library(lubridate)
 library(TSstudio)
 library(plotly)
 library(DT)
@@ -55,10 +52,6 @@ working_hours_ts <- ts(working_hours$hours_worked_index,
 
 # Create First Difference of Hours Worked Index
 working_hours_diff = diff(working_hours_ts)
-#######################  CONSIDER MOVING BELOW TO OTHER ADF/KPSS DATA #########
-
-# Create Log Difference of Hours Worked Index
-working_hours_log = log(working_hours_ts)
 ```
 
 #1. Why do you choose this time series?
@@ -67,7 +60,7 @@ We chose this time series to gain an understanding of how the working hours has 
 
 #2. Why should we care about the forecasts of this time series?
 
-Having an understanding of where working hours are heading can help us as a people understand if people's productivity is increasing or decreasing. If there are less opportunities within a country the working hours of their people will likely decline. Whereas on the other side a healthy economy may have stable or increasing hours of work.
+Having an understanding of where working hours are heading can help us as a people understand if people's productivity is increasing or decreasing. If there are less opportunities within a country the working hours of their people will likely decline. Whereas on the other side a healthy economy may have stable or increasing hours of work. Economies are fueled by discretionary income and is associated with number of working hours.
 
 #3. The time series has been accurately plotted and appropriately labeled.
 
@@ -99,15 +92,57 @@ plot_work_hours
 #4. The characteristics of the time series, such as frequency, trends, seasonality, and anomalies, have been clearly described, providing a comprehensive understanding of its temporal behavior.
 
 ```{r}
-decomp_work_hours_ts <- decompose(working_hours_ts, "additive")
-plot(decomp_work_hours_ts)
+# Histogram - Basic 
+hist_base <- gghistogram(working_hours_ts, fill = "blue", color = 'black', alpha = 0.50,
+                    title ='Mar 2006 - MAR 2023', 
+                    subtitle = 'Agg. Weekly Work Hours Index Indexed(2007=100)',
+                    xlab = 'Index Value: Base (2007 = 100)', ylab = 'Frequency')  +
+  geom_density(color = 'red' )
 
-# First Difference Hours Worked Index decomposition
-decomp_work_hours_diff <- decompose(working_hours_diff, "additive")
-plot(decomp_work_hours_diff)
+# Histogram - Basic for First Difference of Hours Worked Index
+hist_diff <- gghistogram(working_hours_diff, fill = "blue", color = 'black', alpha = 0.50,
+                    title ='First Difference: Mar 2006 - MAR 2023   n = 205', 
+                    subtitle = 'Agg. Weekly Work Hours Index Indexed(2007=100)',
+                    xlab = 'Index Value: Base (2007 = 100)', ylab = 'Frequency')  +
+                    xlim(-5,5) +
+  geom_density(color = 'red' )
+
+# Combination of Histograms with Raw Data, First Difference & Second Difference
+hist_final <- subplot(ggplotly(hist_base), ggplotly(hist_diff))
+hist_final
 ```
 
-The width and height of seasonal cycles over time is predictable and trend is fairly linear with the first difference of hours worked, or seasonal variation is relatively constant over time. Thus, decomposition additively (Yt = Tt + St + Rt) seems appropriate. We'll check if differencing of seasonality required using nsdiffs() function. 
+```{r}
+# Heatmap: Base Time Series by year and month raw data
+ts_heatmap(working_hours_ts, 
+           title = "Mar 2006 - MAR 2023 Agg. Weekly Work Hours Index Indexed(2007=100)")
+```
+
+```{r}
+# Base + First Difference of Hours Worked Index and Seasonality Check
+base_boxplot <- ts_seasonal(working_hours_ts, type = "box", 
+                title = "Raw Data Seasonality/Cycles by Month All Years, Base 2007 = 100")
+base_boxplot
+first_diff_boxplot <- ts_seasonal(working_hours_diff, type = "box",
+  title = "Raw & First Difference Seasonality/Cycles by Month All Years, Base 2007 = 100")
+first_diff_boxplot
+comb_box <- subplot(ggplotly(base_boxplot), ggplotly(first_diff_boxplot), nrows = 2, shareX = TRUE)
+comb_box
+```
+
+```{r}
+ts_seasonal(working_hours_ts, type = "box", 
+            title = "Raw Data Seasonality/Cycles by Month All Years, Base 2007 = 100")
+
+decomp_work_hours_ts <- ts_decompose(working_hours_ts, "additive", showline = TRUE)
+decomp_work_hours_ts
+
+# First Difference Hours Worked Index decomposition
+decomp_work_hours_diff <- ts_decompose(working_hours_diff, "additive", showline = TRUE)
+decomp_work_hours_diff
+```
+
+The width and height of seasonal cycles over time is predictable and trend is fairly linear with the first difference of hours worked, or seasonal variation is relatively constant over time. We'll check if differencing of seasonality required using nsdiffs() function. 
 
 ```{r}
 ## Seasonality check 
@@ -123,55 +158,17 @@ season_first_diff <- ggseasonplot(working_hours_diff) +
   theme_classic2()
 
 # Combined Plot of Raw vs. First Differenced Hours Worked Index
-combo_diff_sec_diff_scatter <- ggarrange(season_raw, season_first_diff,
-          nrow = 2, common.legend = TRUE, legend = 'right', label.x = '')
-combo_diff_sec_diff_scatter
-```
-
-```{r}
-## Comparison of First Difference vs. Raw Data
-par(mfrow = c(2,1), mex = 0.6, cex = 0.8)
-plot(working_hours_ts, main = 'Index of avg Hours Worked (Base = 2007 at 100) Red Line = Time-Series Mean', 
-        xlab = 'Date', ylab = 'Index Value ',type = "l", col = 'blue')
-    abline(h = mean(working_hours_ts), col = "red")
-
-plot(working_hours_diff, main = 'First Difference of Working Hours', xlab = 'Date',
-     ylab = 'First Difference Index Value')
-     lines(working_hours_diff, col = 'blue')
-     abline(h = mean(working_hours_diff), col = 'red')
-```
-
-```{r}
-# Histogram - Basic 
-hist_base <- gghistogram(working_hours_ts, fill = "blue", color = 'black', alpha = 0.50,
-                    title ='Mar 2006 - MAR 2023', 
-                    subtitle = 'Agg. Weekly Work Hours Index Indexed(2007=100)',
-                    xlab = 'Index Value: Base (2007 = 100)', ylab = 'Frequency')  +
-  geom_density(color = 'red' )
-
-# Histogram - Basic for First Difference of Hours Worked Index
-hist_diff <- gghistogram(working_hours_diff, fill = "blue", color = 'black', alpha = 0.50,
-                    title ='First Difference: Mar 2006 - MAR 2023   n = 204', 
-                    subtitle = 'Agg. Weekly Work Hours Index Indexed(2007=100)',
-                    xlab = 'Index Value: Base (2007 = 100)', ylab = 'Frequency')  +
-                    xlim(-5,5) +
-  geom_density(color = 'red' )
-
-# Combination of Histograms with Raw Data, First Difference & Second Difference
-hist_combo <- ggarrange(hist_base, hist_diff, nrow = 2, label.y  = 0.3,
-                        font.label = list(size = 8, color = "black", face = "bold", family = NULL))
-plot(hist_combo)
+subplot(ggplotly(season_raw), ggplotly(season_first_diff), nrows = 2, shareX = TRUE)
 ```
 
 # The Augmented Dickey-Fuller tests have been accurately performed, and the obtained test results have been correctly interpreted.
 
 ```{r}
 adf_base <- ur.df(working_hours_ts, type = "none", selectlags = "AIC")
-
 summary(adf_base)
 ```
 
-The test statistic is higher than all tau values for 1, 5 and 10 percent and p-value is .6714. Transforming working hours index with the first difference of working hours is pragmatic to achieve stationarity. 
+The test statistic is higher than all tau values at the 1, 5 and 10 percent and p-value is .6714. Transforming working hours index with the first difference of working hours is pragmatic to achieve stationarity. 
 
 ```{r}
 df_diff_data = ur.df(working_hours_diff, type = "none", selectlags = "AIC", lags =0)
@@ -180,6 +177,26 @@ summary(df_diff_data)
 ```
 
 t-stat is -14.474, which is < tau1 at 1pct-level, a p-value = 2.2e-16 and AR^2 = 0.5067. Dickey-Fuller with a transformation on the first difference of working hours suggests that we have stationary data now, as the p-value is below 0.01 and test statitic of -14.474 is less than critical value of -2.58 at 99 percent confidence interval, we can reject the null hypothesis that this data is not stationary. Taking the working hours index and transforming it using first difference is sufficient for stationary time series.
+
+```{r}
+## Comparison of First Difference vs. Raw Data
+interactive_raw_first_difference_plot <- cbind(working_hours_ts,working_hours_diff)
+ts_plot(interactive_raw_first_difference_plot, width = 3, type = "multiple",
+        title = "Raw Vs. First Difference Agg. Weekly Work Hours Index Indexed(2007=100)"
+        , Xtitle = "Date", Ytitle = "Index Value - Base 2007 = 100",
+        color = "gold", Xgrid = FALSE, Ygrid = FALSE,
+        ) %>%
+    layout(paper_bgcolor = "black",
+         plot_bgcolor = "black",
+         font = list(color = "white"),
+         yaxis = list(linecolor = "white",
+                      zerolinecolor = "white",
+                      gridcolor= "white"),
+         xaxis = list(linecolor = "white",
+                      zerolinecolor = "white",
+                      gridcolor= "white")
+         )   
+```
 
 # The ACF and PACF correlograms have been accurately plotted, and a coherent explanation is provided to justify the selection of AR or MA process orders based on these correlograms.
 
@@ -203,9 +220,9 @@ acf_pacf_combo <- ggarrange(acf_pacf_12_plot, acf_pacf_12_diff, nrow = 1, ncol =
 acf_pacf_combo
 ```
 
-With ACF and PACF spikes at the second lag suggests that a combined ARMA model of order 2 may be appropriate to consider. The MA(2), AR(2) and ARMA(2,2) models are still intuitive models to further research for modeling as the PACF is alternating through lag periods.
+With ACF and PACF spikes at the second lag suggests that a combined ARMA model of order 2 may be appropriate to consider. The MA(2), AR(2) and ARMA(2,2) models are still intuitive models to further research for modeling as the PACF is alternating through lag periods with the spikes at lag 2.
 
-# ARMA(2, 2)
+# ARMA(2,2)
 ```{r}
 # Fit an ARMA model with order of 2 for both terms with the first difference.
 model_ARMA212 = arima(working_hours_ts, order = c(2, 1, 2))
@@ -219,10 +236,17 @@ if (all(abs(polyroot(c(1, -model_ARMA212$coef))) < 1)) {
   message("Model is invertible.")
 } else {
   message("Model is not invertible.")
-} 
-```
-So we have a reasonably good fit here with a ARMA(2,2) model the AIC is 689.72 which is relatively low, adjusted r-squared of 0.9611276, and phi parameters are both < 1, suggesting a good fit. As well RMSE is 1.2737 which suggests that this models predictions are roughly 1.27 units, or in our case hours, away from actual values. This is a good start.
+}
 
+# R-Squared 
+n = length(working_hours_ts)
+arma22_R2 = cor(fitted(model_ARMA212), working_hours_ts)^2
+arma22_AR2 = 1 - (1-arma22_R2) * (n - 1) / (n - 4 - 1)
+arma22_R2 
+arma22_AR2 # 0.9611276
+```
+
+So we have a reasonably good fit here with a ARMA(2,2) model the AIC is 689.72 which is relatively low, adjusted r-squared of 0.9611276, and phi parameters are both < 1, suggesting a good fit. As well MSE is 1.62601 which suggests that this models predictions are roughly 1.27 units, or in our case hours, away from actual values. This is a good start.
 
 # AR(2)
 ```{r}
@@ -239,8 +263,16 @@ if (all(abs(polyroot(c(1, -model_AR210$coef))) < 1)) {
 } else {
   message("Model is not invertible.")
 }  #Not invertible
+
+# R-Squared
+n = length(working_hours_ts)
+ar2_R2 = cor(fitted(model_AR210), working_hours_ts)^2  
+ar2_AR2 = 1 - (1-ar2_R2) * (n - 1) / (n - 2 - 1)
+ar2_R2
+ar2_AR2 # 0.9614188
 ```
-The AIC is 685.56, both phi parameters are < 1, our adjusted r-squared is 0.9614188 and RMSE is 1.2769. The AIC was lower than ARMA 2,1,2 and adjusted r-squared was marginally better.  
+
+The AIC is 685.56, both phi parameters are < 1, our adjusted r-squared is 0.9614188 and MSE is 1.630474. The AIC was lower than ARMA(2,2) and adjusted r-squared was marginally better.  
 
 # MA(2)
 ```{r}
@@ -257,14 +289,22 @@ if (all(abs(polyroot(c(1, -model_MA012$coef))) < 1)) {
 } else {
   message("Model is not invertible.")
 }  #Not invertible
+
+# R-Squared
+n = length(working_hours_ts)
+ma2_R2 = cor(fitted(model_MA012), working_hours_ts)^2  
+ma2_AR2 = 1 - (1 - ma2_R2) * (n - 1) / (n - 2 - 1)
+ma2_R2
+ma2_AR2 # 0.961485
 ```
-The AIC is 685.25, much better than MA(1) and ARMA(2,2), but only marginally better than AR(2). The adjusted r-squared is 0.961485, just slighly lower than AR(2) and ARMA(2,2), and RMSE was 1.275489.
+
+The AIC is 685.25, much better than ARMA(2,2), but only marginally better than AR(2). The adjusted r-squared is 0.961485, just slightly lower than AR(2) and ARMA(2,2), and MSE was 1.626872.
 
 Our preferred models is AR(2) and MA(2) as they have the highest Adjusted R-squared and lowest AIC/SIC of the three models.
 
 # The ACF and PAC correlograms of the residuals from each specification have been accurately plotted. Furthermore, the white noise property of the residuals has been verified using Q-tests. The test results have been correctly interpreted to determine whether the residuals exhibit the characteristics of white noise.
 
-# ARMA(2, 2) 
+# ARMA(2,2) 
 ```{r}
 # Residuals check ACF/PACF
 check_res(model_ARMA212)
@@ -296,7 +336,8 @@ QTest
 plot(QTest, main = "ARMA(2,1,2) Q Test", xlab = "lag", ylab = "p-value")
 abline(h = .05, col = "red", lty = 3)
 ```
-The Ljung-Box statistic is used to see if all underlying population autocorrelations for the error may be zero. Our t-stat was 0.0015358 and p-value of 0.9968 given 5 lags, which is well above 0.05 -a significant threshold for non-zero autocorrelations that rejects null that residuals are independently distributed.
+
+The Ljung-Box statistic is used to see if all underlying population auto correlations for the error may be zero. With an X-squared value of 0.22148 and a p-value of 0.9968 given 5 lags, which is well above 0.05 -a significant threshold for non-zero auto correlations that rejects null that residuals are independently distributed.
 
 # AR(2) 
 ```{r}
@@ -330,6 +371,7 @@ QTest
 plot(QTest, main = "AR2 Q Test", xlab = "lag", ylab = "p-value")
 abline(h = .05, col = "red", lty = 3)
 ```
+
 Our Q-test using Ljung was 0.24938500 and p-value looked good at 0.9692 with three lags.
 
 # MA(2)
@@ -363,14 +405,14 @@ QTest
 plot(QTest, main = "MA2 Q Test", xlab = "lag", ylab = "p-value")
 abline(h = .05, col = "red", lty = 3)
 ```
-The Ljung box test p-value looked good at 0.9886 at 3 lags.
+The Ljung box test X-Squared was 0.12569 &  p-value looked good at 0.9886 at 3 lags.
  
 To summarize, all of our residual checks look fairly good and we can feel confident that the residuals are white noise.
  
 # The model estimation and evaluation results have been accurately summarized in a table format, similar to Table 8.2 on page 214.
 
 ```{r}
-# TODO
+knitr::include_graphics("../figures/Model_estimation_results_table.png")
 ```
 
 # The multistep forecasts, along with their corresponding bands, have been accurately plotted. The interpretation of the results are provided
