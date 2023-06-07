@@ -12,22 +12,6 @@ editor_options:
   chunk_output_type: inline
 ---
 
-TO DO:
-1. OLS-weighted optimal forecast - emulate table 9.8 on text pp.245, already in slide deck in google drive
-
-2. Regression Interpretation for 3 models to check the box.
-
-3. Graphs - Haven't done anything for Combination Forecasts.
-  a. Haven't done anything for Combination Forecasts.
-  
-4. Chris' narrative report checklist review
-
-5. Update Slide deck with items list above.  Erik updated nearly everything.  Needs closers that want to win championships.
-
-# Evaluating Heteroscedasticity
-plot(arma22_forecast, resid(arma22fcast$residuals), xlab='Fitted Values', ylab='Residuals')
-abline(0,0)
-
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 
@@ -74,7 +58,6 @@ working_hours_ts <- ts(working_hours$hours_worked_index,
 
 # Create First Difference of Hours Worked Index
 working_hours_diff = diff(working_hours_ts)
-#######################  CONSIDER MOVING BELOW TO OTHER ADF/KPSS DATA #########
 
 # Create Log Difference of Hours Worked Index
 working_hours_log = log(working_hours_ts)
@@ -123,9 +106,7 @@ ts_plot(working_hours_ts, slider = TRUE,
                       zerolinecolor = "white",
                       gridcolor= "white"))
 
-# Heatmap: Base Time Series by year and month raw data
-ts_heatmap(working_hours_ts, 
-           title = "Mar 2006 - MAR 2023 Agg. Weekly Work Hours Index Indexed(2007=100)")
+
 
 # Heatmap: Log Working Hours Time Series By Year and Month
 ts_heatmap(working_hours_log, 
@@ -218,6 +199,7 @@ raw_season
 ts_seasonal(working_hours_ts, type = "box", 
             title = "Raw Data Seasonality/Cycles by Month All Years, Base 2007 = 100")
 ```
+
 This box plot is another method to look at potential seasonality by month from 2006-2023. The Q1 and Q4 are slightly higher than Q2 and Q3 as present in the box plot which is indicative of a cycle. First let's address the Trend and maybe the seasonality with taking the first difference. It is clearly evident that taking the first-difference of indexed hours worked is worth exploring.
 
 # Dickey-Fuller Check For Stationary Time Series
@@ -308,7 +290,6 @@ ts_heatmap(working_hours_diff,
 
 # Interactive Chart
 interactive_raw_first_difference_plot <- cbind(working_hours_ts,working_hours_diff)
-
 ts_plot(interactive_raw_first_difference_plot, width = 3, type = "multiple",
         title = "Raw Vs. First Difference Agg. Weekly Work Hours Index Indexed(2007=100)"
         , Xtitle = "Date", Ytitle = "Index Value - Base 2007 = 100",
@@ -474,9 +455,9 @@ if (all(abs(polyroot(c(1, -model_ARMA212$coef))) < 1)) {
 REGRESSION INTERPRETATION(S):
 
 ```{r}
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared 
 n = length(working_hours_ts)
-arma22_R2 = cor(fitted(model_ARMA212), working_hours_ts)^2  # 0.9618626
+arma22_R2 = cor(fitted(model_ARMA212), working_hours_ts)^2
 arma22_AR2 = 1 - (1-arma22_R2) * (n - 1) / (n - 4 - 1)
 arma22_R2 # 0.9618898
 arma22_AR2 # 0.9611276
@@ -584,7 +565,7 @@ REGRESSION INTERPRETATIONS:
 
 
 ```{r, echo=TRUE, warning=FALSE}
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared
 n = length(working_hours_ts)
 ar2_R2 = cor(fitted(model_AR210), working_hours_ts)^2  # 0.9618626
 ar2_AR2 = 1 - (1-ar2_R2) * (n - 1) / (n - 2 - 1)
@@ -689,7 +670,7 @@ REGRESSION INTERPRETATIONS:
 
 
 ```{r}
-# R-Squared from Week 6-Chapter 8 practice problem set
+# R-Squared
 n = length(working_hours_ts)
 ma2_R2 = cor(fitted(model_MA012), working_hours_ts)^2  # 0.9618626
 ma2_AR2 = 1 - (1 - ma2_R2) * (n - 1) / (n - 2 - 1)
@@ -992,12 +973,12 @@ for (i in 1:21){
 
 f4error <- round(test-f4, digits = 3)
 f4loss <- round(f4error^2, digits = 3)
-mse_MA4 <- mean(f4error^2) 
-mpe_test_MA4 <- lm(f4error~1) 
-summary(mpe_test_MA4) 
+mse_f4 <- mean(f4error^2) 
+mpe_test_f4 <- lm(f4error~1) 
+summary(mpe_test_f4) 
 
 # Use Robust Standard Errors
-coeftest(mpe_test_MA4, vcoc= vcocHC(mpe_test_MA4, type = 'HC0'))
+coeftest(mpe_test_f4, vcoc= vcocHC(mpe_test_f4, type = 'HC0'))
 
 # Combine Test, Forecast, Error, Loss into one Data Frame
 final_f4 <- datatable(cbind(test, f4, f4error, f4loss), 
@@ -1085,16 +1066,14 @@ ew_plot <- ts_plot(ew_comb_plot, width = 3, slider = FALSE, type = "single",
 ew_plot
 ```
 
-COMMENTS: 
-
 # Inverse MSE Forecast
 ```{r}
 imse_comb_fcast <- numeric(21)
 
-imse_arma212 <- (1/arma22_mse) / ((1/arma22_mse) + (1/ar2_mse) + (1/ma2_mse) + (1/mse_MA4))
-imse_arma210 <- (1/ar2_mse) / ((1/ar2_mse) + (1/arma22_mse) + (1/ma2_mse) + (1/mse_MA4))
-imse_arma012 <- (1/ma2_mse) / ((1/ma2_mse) + (1/arma22_mse) + (1/ar2_mse) + (1/mse_MA4))
-imse_sma4 <- (1/mse_MA4) / ((1/mse_MA4) + (1/arma22_mse) + (1/ar2_mse) + (1/ma2_mse))
+imse_arma212 <- (1/arma22_mse) / ((1/arma22_mse) + (1/ar2_mse) + (1/ma2_mse) + (1/mse_f4))
+imse_arma210 <- (1/ar2_mse) / ((1/ar2_mse) + (1/arma22_mse) + (1/ma2_mse) + (1/mse_f4))
+imse_arma012 <- (1/ma2_mse) / ((1/ma2_mse) + (1/arma22_mse) + (1/ar2_mse) + (1/mse_f4))
+imse_sma4 <- (1/mse_f4) / ((1/mse_f4) + (1/arma22_mse) + (1/ar2_mse) + (1/ma2_mse))
 
 for (i in 1:21){
      imse_comb_fcast[i] <- (imse_arma212 * arma22_forecast[i] + 
@@ -1106,7 +1085,7 @@ for (i in 1:21){
 # Error, Loss, MSE and MPE test
 imse_error <- round(test-imse_comb_fcast, digits = 3)
 imse_loss <- round(imse_error^2, digits = 3)
-imse_combo <- mean(imse_error^2)
+imse_combo_mse <- mean(imse_error^2)
 mpe_test_combo_inverse <- lm(imse_error~1)
 summary(mpe_test_combo_inverse)
 
@@ -1140,63 +1119,52 @@ imse_plot <- ts_plot(imse_comb_plot, width = 3, slider = FALSE, type = "single",
 imse_plot
 ```
 
-COMMENTS: 
-
 # OLS Weighted Forecast
 ```{r}
-# define weights to use
-arma22_weight <- lm(arma22fcast$fitted ~ test)
-ar2_weight <- lm(ar2fcast$fitted ~ test)
-ma2_weight <- lm(ma2fcast$fitted ~ test)
-f4_weight <- lm(f4 ~ test)
+g0<-window(working_hours_ts,start=c(2021,7))
+comb_ols <-lm(g0 ~ arma22_forecast + ar2_forecast + ma2_forecast + f4) # forecasts of 4 models
+summary(comb_ols)
 
-ols_comb_fcast <- numeric(21)
-
-for (i in 1:21) {
-  ols_comb_fcast[i] <- 0.25 * arma22_forecast[i] + 0.25 * ar2_forecast[i] +
-                        0.25 * ma2_forecast[i] + 0.25 * f4[i]
-}
+# Create Forecast
+fcast_ols <- ts(comb_ols$fitted.values, frequency = 12, start = c(2021,7))
 
 # Error, Loss, MSE and MPE test
-ols_error <- round(test-ew_comb_fcast, digits = 3)
-ols_loss <- round(ew_error^2, digits = 3)
-ols_mse_combo <- mean(ew_error^2)  
-ols_mpe_test_combo <- lm(ew_error~1)
-summary(ew_mpe_test_combo)
+ols_error <- test-fcast_ols
+ols_loss <- ols_error^2
+ols_combo_mse <- mean(ols_loss)
+mpe_test_combo_ols <- lm(ols_error ~ 1)
+summary(mpe_test_combo_ols)
 
+# Use Robust Standard Errors
+coeftest(mpe_test_combo_ols, vcoc= vcocHC(mpe_test_combo_ols, type = 'HC0'))
 
+ols_IET_test <- lm(imse_error ~ fcast_ols)
+summary(ols_IET_test)
 
-arma22_weight1 <- lm(abs(arma22fcast$residuals) ~ arma22fcast$fitted^2) # -0.05154
-ar2_weight1 <- lm(abs(ar2fcast$residuals) ~ ar2fcast$fitted^2) # -0.05435
-ma2_weight1 <- lm(abs(ma2fcast$residuals) ~ ma2fcast$fitted^2) #  -0.05354 
-f4_weight1 <- lm(abs(f4error ~ test))
+# Combine Test, Equal Weight Forecast, Error, Loss into Table
+ols_comb_final <- datatable(round(cbind(test,fcast_ols, ols_error, ols_loss),digits = 3),
+                caption = "OLS Combined Forecast for July 2021 - Mar 2023")
+ols_comb_final
 
+# Create Data Table for Pertinent Fit Metrics
+fit_ols_comb_metrics <- datatable(round(accuracy(fcast_ols, test), digits = 5),
+                      caption = "Inverse MSE Combined Forecast for July 2021 - Mar 2023")
+fit_ols_comb_metrics
 
-ols_comb_fcast <- numeric(21)
+# Plot OLS Forecast
+ols_comb_plot <- cbind(test, fcast_ols)
 
-for (i in 1:21) {
-  ols_comb_fcast[i] <- 0.25 * arma22_forecast[i] + 0.25 * ar2_forecast[i] +
-                        0.25 * ma2_forecast[i] + 0.25 * f4[i]
-}
-
-# Error, Loss, MSE and MPE test
-ols_error <- round(test-ew_comb_fcast, digits = 3)
-ols_loss <- round(ew_error^2, digits = 3)
-ols_mse_combo <- mean(ew_error^2)  
-ols_mpe_test_combo <- lm(ew_error~1)
-summary(ew_mpe_test_combo)
-
-
-
-
-
-
+ols_plot <- ts_plot(ols_comb_plot, width = 3, slider = FALSE, type = "single", 
+                    Ytitle = "First Difference of Working Hours Index",
+                    Xgrid = TRUE, Ygrid = TRUE, 
+                    title = "July 2021-March 2023: OLS of ARMA(2,2), AR(2),MA(2), Simple Naive Last 4 observations")
+ols_plot
 ```
 
 # Graph of All Models
 ```{r}
 all_models <- cbind(test, arma22_forecast,ar2_forecast, ma2_forecast, f4,
-                    ew_comb_fcast, imse_comb_fcast) # NOTE MISSING OLS WEIGHT
+                    ew_comb_fcast, imse_comb_fcast,fcast_ols)
 all_models_plot <- ts_plot(all_models, width = 2, slider = FALSE, type = "single",
                     Ytitle = "First Difference of Working Hours Index",
                     Xgrid = TRUE, Ygrid = TRUE, 
@@ -1204,11 +1172,14 @@ all_models_plot <- ts_plot(all_models, width = 2, slider = FALSE, type = "single
 all_models_plot
 ```
 
-# Optimal Linear Forecast- what in the world is this?
+# Graph Combination Models Vs. Test
 ```{r}
-g0<-window(working_hours_ts,start=c(2021,7))
-comb <-lm(g0 ~ arma22_forecast + ar2_forecast + ma2_forecast + f4) # forecasts of 4 models
-summary(comb)  #AR^2 = 0.3906
+combo_models <- cbind(test, ew_comb_fcast, imse_comb_fcast,fcast_ols)
+combo_models_plot <- ts_plot(combo_models, width = 2, slider = FALSE, type = "single",
+                    Ytitle = "First Difference of Working Hours Index",
+                    Xgrid = TRUE, Ygrid = TRUE, 
+                    title = "July 2021-March 2023: Combination Models")
+combo_models_plot
 ```
 
 # Table for All Model Results
@@ -1217,29 +1188,19 @@ summary(comb)  #AR^2 = 0.3906
 summary_table <- datatable(cbind(test, arma22_forecast, arma22error, arma22_loss, ar2_forecast,
                          ar2error, ar2_loss, ma2_forecast, ma2error, ma2_loss,
                          f4, f4error,f4loss, ew_comb_fcast, ew_error, ew_loss,
-                         imse_comb_fcast, imse_error, imse_loss), # NOTE MISSING OLS WEIGHT
+                         imse_comb_fcast, imse_error, imse_loss,fcast_ols, ols_error,ols_loss ),
                          filter = "top", 
                           options = list(pageLength = nrow(test),autoWidth = TRUE),
                           caption = "Summary Table : All Models")
 summary_table
 ```
 
-## Qudratic Loss Data Tables
+# All Models Out-of-Sample MSE and Mean Loss
 ```{r}
-model_losses <- datatable(cbind(arma22_loss, ar2_loss, ma2_loss, 
-                                            f4loss,ew_loss,imse_loss),
-                          caption = "Model Loss Data Table") 
-
-# Mean Loss for Each Model Data Table
-arma22_loss_mean <- mean(arma22_loss)
-ar2_loss_mean <- mean(ar2_loss)
-ma2_loss_mean <- mean(ma2_loss)
-f4loss_mean <- mean(f4loss)
-ew_loss_mean <- mean(ew_loss)
-imse_loss_mean <- mean(imse_loss)
-
-models_mean_loss <- datatable(round(cbind(arma22_loss_mean, ar2_loss_mean, ma2_loss_mean, 
-                                    f4loss_mean, ew_loss_mean, imse_loss_mean), digits = 5),
-                              caption = "All Models Mean Loss Out Of Sample")
-models_mean_loss
+model_all_mse <- datatable(round(cbind(arma22_mse, ar2_mse, ma2_mse, 
+                                mse_f4,ew_mse_combo, imse_combo_mse,ols_combo_mse),
+                                digits = 5),
+                          caption = "All Models MSE") 
+model_all_mse
 ```
+
