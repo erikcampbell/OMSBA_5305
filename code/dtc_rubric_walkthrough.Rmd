@@ -887,7 +887,7 @@ summary_table <- datatable(cbind(test, arma22_forecast, arma22error, arma22_loss
 summary_table
 ```
 
-# All Models Out-of-Sample MSE and Mean Loss
+# All Models Out-of-Sample MSE
 ```{r}
 model_all_mse <- datatable(round(cbind(arma22_mse, ar2_mse, ma2_mse, 
                                 mse_f4,ew_mse_combo, imse_combo_mse,ols_combo_mse),
