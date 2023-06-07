@@ -29,6 +29,7 @@ library(lmtest)
 library(TSstudio)
 library(plotly)
 library(DT)
+library(urca)
 ```
 
 Our data is FRED creating an index (2007=100) of aggregate weekly hours reported on a monthly basis. The indexes of aggregate weekly hours are calculated by dividing the current month's aggregate hours by the average of the 12 monthly figures, for the base year (2007).
@@ -56,7 +57,7 @@ working_hours_diff = diff(working_hours_ts)
 
 #1. Why do you choose this time series?
 
-We chose this time series to gain an understanding of how the working hours has changed over time and to help predict fluctuates of these changes.
+We chose this time series to gain an understanding of how the working hours has changed over time and to help predict fluctuations of these changes.
 
 #2. Why should we care about the forecasts of this time series?
 
@@ -231,13 +232,6 @@ coeftest(model_ARMA212)
 autoplot(model_ARMA212)
 BIC(model_ARMA212)
 
-# Root test
-if (all(abs(polyroot(c(1, -model_ARMA212$coef))) < 1)) {
-  message("Model is invertible.")
-} else {
-  message("Model is not invertible.")
-}
-
 # R-Squared 
 n = length(working_hours_ts)
 arma22_R2 = cor(fitted(model_ARMA212), working_hours_ts)^2
@@ -257,13 +251,6 @@ coeftest(model_AR210)
 autoplot(model_AR210)
 BIC(model_AR210)
 
-# Root test
-if (all(abs(polyroot(c(1, -model_AR210$coef))) < 1)) {
-  message("Model is invertible.")
-} else {
-  message("Model is not invertible.")
-}  #Not invertible
-
 # R-Squared
 n = length(working_hours_ts)
 ar2_R2 = cor(fitted(model_AR210), working_hours_ts)^2  
@@ -280,15 +267,8 @@ The AIC is 685.56, both phi parameters are < 1, our adjusted r-squared is 0.9614
 model_MA012 = arima(working_hours_ts, order = c(0, 1, 2))
 summary(model_MA012)
 coeftest(model_MA012)
-autoplot(model_MA012)
+autoplot(model_MA012) # Pure MA models may or may not be invertible
 BIC(model_MA012)
-
-# Root test
-if (all(abs(polyroot(c(1, -model_MA012$coef))) < 1)) {
-  message("Model is invertible.")
-} else {
-  message("Model is not invertible.")
-}  #Not invertible
 
 # R-Squared
 n = length(working_hours_ts)
@@ -680,12 +660,12 @@ for (i in 1:21){
 
 f4error <- round(test-f4, digits = 3)
 f4loss <- round(f4error^2, digits = 3)
-mse_MA4 <- mean(f4error^2) 
-mpe_test_MA4 <- lm(f4error~1) 
-summary(mpe_test_MA4) 
+mse_f4 <- mean(f4error^2) 
+mpe_test_f4 <- lm(f4error~1) 
+summary(mpe_test_f4) 
 
 # Use Robust Standard Errors
-coeftest(mpe_test_MA4, vcoc= vcocHC(mpe_test_MA4, type = 'HC0'))
+coeftest(mpe_test_f4, vcoc= vcocHC(mpe_test_f4, type = 'HC0'))
 
 # Combine Test, Forecast, Error, Loss into one Data Frame
 final_f4 <- datatable(cbind(test, f4, f4error, f4loss), 
@@ -724,7 +704,9 @@ plot_our_models
 
 # The forecast optimality tests, including the mean percentage error (MPE) and informational efficiency tests, have been correctly implemented for each model. Additionally, the mean squared error (MSE) has been accurately calculated and used correctly in choosing models.
 
-See above
+```{r}
+knitr::include_graphics("../figures/optimality_of_forecast_table.png")
+```
 
 # The combined forecasts have been correctly conducted using three linear combination schemes. The weights and MSE of these three combinations of forecasts have been accurately summarized in a table format, similar to Table 9.8 on page 246.
 
@@ -776,16 +758,14 @@ ew_plot <- ts_plot(ew_comb_plot, width = 3, slider = FALSE, type = "single",
 ew_plot
 ```
 
-COMMENTS: 
-
 # Inverse MSE Forecast
 ```{r}
 imse_comb_fcast <- numeric(21)
 
-imse_arma212 <- (1/arma22_mse) / ((1/arma22_mse) + (1/ar2_mse) + (1/ma2_mse) + (1/mse_MA4))
-imse_arma210 <- (1/ar2_mse) / ((1/ar2_mse) + (1/arma22_mse) + (1/ma2_mse) + (1/mse_MA4))
-imse_arma012 <- (1/ma2_mse) / ((1/ma2_mse) + (1/arma22_mse) + (1/ar2_mse) + (1/mse_MA4))
-imse_sma4 <- (1/mse_MA4) / ((1/mse_MA4) + (1/arma22_mse) + (1/ar2_mse) + (1/ma2_mse))
+imse_arma212 <- (1/arma22_mse) / ((1/arma22_mse) + (1/ar2_mse) + (1/ma2_mse) + (1/mse_f4))
+imse_arma210 <- (1/ar2_mse) / ((1/ar2_mse) + (1/arma22_mse) + (1/ma2_mse) + (1/mse_f4))
+imse_arma012 <- (1/ma2_mse) / ((1/ma2_mse) + (1/arma22_mse) + (1/ar2_mse) + (1/mse_f4))
+imse_sma4 <- (1/mse_f4) / ((1/mse_f4) + (1/arma22_mse) + (1/ar2_mse) + (1/ma2_mse))
 
 for (i in 1:21){
      imse_comb_fcast[i] <- (imse_arma212 * arma22_forecast[i] + 
@@ -797,7 +777,7 @@ for (i in 1:21){
 # Error, Loss, MSE and MPE test
 imse_error <- round(test-imse_comb_fcast, digits = 3)
 imse_loss <- round(imse_error^2, digits = 3)
-imse_combo <- mean(imse_error^2)
+imse_combo_mse <- mean(imse_error^2)
 mpe_test_combo_inverse <- lm(imse_error~1)
 summary(mpe_test_combo_inverse)
 
@@ -831,56 +811,52 @@ imse_plot <- ts_plot(imse_comb_plot, width = 3, slider = FALSE, type = "single",
 imse_plot
 ```
 
-COMMENTS: 
-
 # OLS Weighted Forecast
 ```{r}
-# define weights to use
-arma22_weight <- lm(arma22fcast$fitted ~ test)
-ar2_weight <- lm(ar2fcast$fitted ~ test)
-ma2_weight <- lm(ma2fcast$fitted ~ test)
-f4_weight <- lm(f4 ~ test)
+g0<-window(working_hours_ts,start=c(2021,7))
+comb_ols <-lm(g0 ~ arma22_forecast + ar2_forecast + ma2_forecast + f4) # forecasts of 4 models
+summary(comb_ols)
 
-ols_comb_fcast <- numeric(21)
-
-for (i in 1:21) {
-  ols_comb_fcast[i] <- 0.25 * arma22_forecast[i] + 0.25 * ar2_forecast[i] +
-                        0.25 * ma2_forecast[i] + 0.25 * f4[i]
-}
+# Create Forecast
+fcast_ols <- ts(comb_ols$fitted.values, frequency = 12, start = c(2021,7))
 
 # Error, Loss, MSE and MPE test
-ols_error <- round(test-ew_comb_fcast, digits = 3)
-ols_loss <- round(ew_error^2, digits = 3)
-ols_mse_combo <- mean(ew_error^2)  
-ols_mpe_test_combo <- lm(ew_error~1)
-summary(ew_mpe_test_combo)
+ols_error <- test-fcast_ols
+ols_loss <- ols_error^2
+ols_combo_mse <- mean(ols_loss)
+mpe_test_combo_ols <- lm(ols_error ~ 1)
+summary(mpe_test_combo_ols)
 
-arma22_weight1 <- lm(abs(arma22fcast$residuals) ~ arma22fcast$fitted^2) # -0.05154
-ar2_weight1 <- lm(abs(ar2fcast$residuals) ~ ar2fcast$fitted^2) # -0.05435
-ma2_weight1 <- lm(abs(ma2fcast$residuals) ~ ma2fcast$fitted^2) #  -0.05354 
-f4_weight1 <- lm(abs(f4error ~ test))
+# Use Robust Standard Errors
+coeftest(mpe_test_combo_ols, vcoc= vcocHC(mpe_test_combo_ols, type = 'HC0'))
 
+ols_IET_test <- lm(imse_error ~ fcast_ols)
+summary(ols_IET_test)
 
-ols_comb_fcast <- numeric(21)
+# Combine Test, Equal Weight Forecast, Error, Loss into Table
+ols_comb_final <- datatable(round(cbind(test,fcast_ols, ols_error, ols_loss),digits = 3),
+                caption = "OLS Combined Forecast for July 2021 - Mar 2023")
+ols_comb_final
 
-for (i in 1:21) {
-  ols_comb_fcast[i] <- 0.25 * arma22_forecast[i] + 0.25 * ar2_forecast[i] +
-                        0.25 * ma2_forecast[i] + 0.25 * f4[i]
-}
+# Create Data Table for Pertinent Fit Metrics
+fit_ols_comb_metrics <- datatable(round(accuracy(fcast_ols, test), digits = 5),
+                      caption = "Inverse MSE Combined Forecast for July 2021 - Mar 2023")
+fit_ols_comb_metrics
 
-# Error, Loss, MSE and MPE test
-ols_error <- round(test-ew_comb_fcast, digits = 3)
-ols_loss <- round(ew_error^2, digits = 3)
-ols_mse_combo <- mean(ew_error^2)  
-ols_mpe_test_combo <- lm(ew_error~1)
-summary(ew_mpe_test_combo)
+# Plot OLS Forecast
+ols_comb_plot <- cbind(test, fcast_ols)
 
+ols_plot <- ts_plot(ols_comb_plot, width = 3, slider = FALSE, type = "single", 
+                    Ytitle = "First Difference of Working Hours Index",
+                    Xgrid = TRUE, Ygrid = TRUE, 
+                    title = "July 2021-March 2023: OLS of ARMA(2,2), AR(2),MA(2), Simple Naive Last 4 observations")
+ols_plot
 ```
 
 # Graph of All Models
 ```{r}
 all_models <- cbind(test, arma22_forecast,ar2_forecast, ma2_forecast, f4,
-                    ew_comb_fcast, imse_comb_fcast)
+                    ew_comb_fcast, imse_comb_fcast,fcast_ols)
 all_models_plot <- ts_plot(all_models, width = 2, slider = FALSE, type = "single",
                     Ytitle = "First Difference of Working Hours Index",
                     Xgrid = TRUE, Ygrid = TRUE, 
@@ -888,11 +864,14 @@ all_models_plot <- ts_plot(all_models, width = 2, slider = FALSE, type = "single
 all_models_plot
 ```
 
-# Optimal Linear Forecast- what in the world is this?
+# Graph Combination Models Vs. Test
 ```{r}
-g0<-window(working_hours_ts,start=c(2021,7))
-comb <-lm(g0 ~ arma22_forecast + ar2_forecast + ma2_forecast + f4) # forecasts of 4 models
-summary(comb)  #AR^2 = 0.3906
+combo_models <- cbind(test, ew_comb_fcast, imse_comb_fcast,fcast_ols)
+combo_models_plot <- ts_plot(combo_models, width = 2, slider = FALSE, type = "single",
+                    Ytitle = "First Difference of Working Hours Index",
+                    Xgrid = TRUE, Ygrid = TRUE, 
+                    title = "July 2021-March 2023: Combination Models")
+combo_models_plot
 ```
 
 # Table for All Model Results
@@ -901,22 +880,22 @@ summary(comb)  #AR^2 = 0.3906
 summary_table <- datatable(cbind(test, arma22_forecast, arma22error, arma22_loss, ar2_forecast,
                          ar2error, ar2_loss, ma2_forecast, ma2error, ma2_loss,
                          f4, f4error,f4loss, ew_comb_fcast, ew_error, ew_loss,
-                         imse_comb_fcast, imse_error, imse_loss),
+                         imse_comb_fcast, imse_error, imse_loss,fcast_ols, ols_error,ols_loss ),
                          filter = "top", 
                           options = list(pageLength = nrow(test),autoWidth = TRUE),
                           caption = "Summary Table : All Models")
 summary_table
 ```
 
-## Qudratic Loss Differential
+# All Models Out-of-Sample MSE and Mean Loss
 ```{r}
-arma22_ar2_loss_diff <- as.data.frame(cbind(test,arma22_loss, ar2_loss, ma2_loss, 
-                                            f4loss,ew_loss,imse_loss)) %>%
-                        mutate(arma22_ar2_quad_loss_diff = arma22_loss-ar2_loss,
-                               arma22_ma2_quad_loss_diff = arma22_loss-ma2_loss,
-                               arma22_f4_quad_loss_diff = arma22_loss-f4loss,
-                               arma22_ew_combo_loss_diff = arma22_loss-ew_loss,
-                               arma22_imse_combo_loss_diff = arma22_loss-imse_loss
-                               )
-arma22_ar2_loss_diff # forecast errors are random variable, so mean can be useful.
+model_all_mse <- datatable(round(cbind(arma22_mse, ar2_mse, ma2_mse, 
+                                mse_f4,ew_mse_combo, imse_combo_mse,ols_combo_mse),
+                                digits = 5),
+                          caption = "All Models MSE") 
+model_all_mse
 ```
+
+
+
+
